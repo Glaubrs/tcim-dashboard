@@ -144,7 +144,7 @@ def main() -> None:
 
         st.subheader("Gestão de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        stake = st.number_input("Stake por Trade ($)", min_value=1.0, value=100.0, step=10.0)
+        stake = st.number_input("Caixa por Trade ($)", min_value=1.0, value=100.0, step=10.0)
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
 
         st.info(f"Total de registros brutos: {len(df)}")
@@ -203,9 +203,53 @@ def main() -> None:
     st.divider()
 
     # --- Abas de Conteúdo ---
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Curva de Capital", "🌍 Análise Regional", "📅 Análise Mensal", "📉 Piores Trades & Dados"])
+    tab_metodo, tab_curva, tab_regiao, tab_mensal, tab_trades = st.tabs(
+        ["ℹ️ Método", "📈 Curva de Capital", "🌍 Análise Regional", "📅 Análise Mensal", "📉 Piores Trades & Dados"]
+    )
 
-    with tab1:
+    with tab_metodo:
+        st.subheader("Sobre o Método TCIM")
+        st.markdown(
+            """
+**O TCIM (Tendência, Contexto, Impulso e Mitigação)** é um modelo quantitativo desenvolvido para identificar o viés probabilístico do mercado — compra, venda ou ficar de fora — cerca de 30 minutos antes da abertura das principais sessões do mercado Forex (Ásia, Europa e América).
+
+Ele combina métricas de tendência, força e volatilidade para gerar uma leitura objetiva do comportamento do preço, reduzindo interferências emocionais na decisão operacional.
+
+⚙️ **Estrutura do Método**
+
+- **Tendência** → avalia direção e inclinação das EMAs (20 e 50).  
+  Alta: ambas inclinadas para cima e preço acima.  
+  Baixa: ambas inclinadas para baixo e preço abaixo.  
+  Neutra: slopes próximos de zero (mercado lateral).
+- **Contexto** → posição do preço vs. VWAP ancorada na sessão e EMA50, considerando distância em múltiplos de ATR.  
+  Favorável: preço alinhado e próximo ao equilíbrio.  
+  Desfavorável: preço afastado demais ou contra o fluxo.
+- **Impulso** → força via ADX; impulso forte sugere tendência ativa, baixo indica consolidação.
+- **Mitigação** → penaliza risco/exaustão (volatilidade extrema, pavios longos, preço esticado).
+
+🧠 **Decisão de Viés**
+
+Cada bloco soma pontuações positivas/negativas; o **TCIM Score** define:  
+Score ≥ 2.5 → **COMPRA**  
+Score ≤ -2.5 → **VENDA**  
+Intermediário → **FORA**  
+Sempre acompanhado de justificativas e alertas para transparência.
+
+🌍 **Adaptação por Região**
+
+Parâmetros ajustados por sessão (Ásia, Europa, América) para refletir volatilidade e perfil de cada mercado.
+
+📈 **Filosofia**
+
+O TCIM é um sistema de análise preditiva, não um robô de execução. Entrega leitura fria e estatística para alinhar decisões, respeitar risco e manter consistência.
+
+⚠️ **Próximos updates: Alertas e Histórico de Risco**
+
+O sistema emitirá alertas quando detectar contextos semelhantes a perdas relevantes no passado, ajudando a reconhecer padrões de risco recorrentes (rompimentos falsos, exaustões, volatilidade anormal).
+"""
+        )
+
+    with tab_curva:
         st.subheader("Evolução Simulada do Patrimônio")
         fig = px.line(
             df_filtered, 
@@ -219,7 +263,19 @@ def main() -> None:
         fig.update_layout(hovermode="x unified")
         st.plotly_chart(fig, use_container_width=True)
 
-    with tab2:
+        # Drawdown inclui o capital inicial como ponto zero da curva
+        capital_series = df_filtered["Capital"].reset_index(drop=True)
+        capital_with_start = pd.concat([pd.Series([capital_inicial]), capital_series], ignore_index=True)
+        pico = capital_with_start.cummax()
+        dd_series = (capital_with_start - pico) / pico
+        max_dd_pct = dd_series.min() if not dd_series.empty else 0.0
+        max_dd_abs = (capital_with_start - pico).min() if not capital_with_start.empty else 0.0
+        boxes_lost = abs(max_dd_abs) / stake if stake > 0 else 0.0
+        st.markdown(
+            f"**Drawdown máximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} em valor absoluto) ou {boxes_lost:.2f} caixas"
+        )
+
+    with tab_regiao:
         st.subheader("Performance Detalhada por Região")
         region_stats_rows = []
         for reg, df_reg in df_stats_global.groupby("Region"):
@@ -257,7 +313,7 @@ def main() -> None:
             use_container_width=True
         )
 
-    with tab3:
+    with tab_mensal:
         st.subheader("Consistência Mensal")
         monthly_rows = []
         for (reg, mes), df_group in df_stats_global.groupby(["Region", "Mes"]):
@@ -284,7 +340,7 @@ def main() -> None:
             use_container_width=True
         )
 
-    with tab4:
+    with tab_trades:
         col_worst, col_raw = st.columns([1, 2])
         
         with col_worst:
