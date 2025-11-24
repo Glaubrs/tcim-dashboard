@@ -1,0 +1,312 @@
+"""
+Dashboard interativo do backtest TCIM - Visual Profissional.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Tuple
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+import numpy as np
+
+# URL da imagem fornecida
+LOGO_URL = "logo.png"
+
+# Configuração da Página deve ser a primeira chamada Streamlit
+st.set_page_config(
+    page_title="TCIM Dashboard",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- Funções de Cálculo (Mantidas da lógica original) ---
+
+@st.cache_data
+def load_data(csv_path: Path) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(csv_path, sep=";")
+        df["DateParsed"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+        df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
+        return df
+    except Exception as e:
+        st.error(f"Erro ao ler CSV: {e}")
+        return pd.DataFrame()
+
+
+def compute_directional_pnl(df: pd.DataFrame) -> pd.Series:
+    pnl = pd.Series(np.nan, index=df.index, dtype="float")
+    buys = df["TCIM_Vies"] == "COMPRA"
+    sells = df["TCIM_Vies"] == "VENDA"
+    pnl.loc[buys] = pd.to_numeric(df.loc[buys, "Up"], errors="coerce")
+    pnl.loc[sells] = pd.to_numeric(df.loc[sells, "Down"], errors="coerce")
+    return pnl
+
+
+def equity_curve(
+    pnl: pd.Series,
+    initial_capital: float,
+    stake_per_trade: float,
+) -> Tuple[pd.Series, pd.Series]:
+    pnl = pnl.fillna(0.0)
+    capital_values = []
+    capital = initial_capital
+    for val in pnl:
+        capital += stake_per_trade * val
+        capital_values.append(capital)
+    capital_series = pd.Series(capital_values, index=pnl.index)
+    growth = (capital_series / initial_capital) - 1.0
+    return capital_series, growth
+
+
+def _region_metrics(df_regiao: pd.DataFrame) -> dict:
+    total = len(df_regiao)
+    acertos = df_regiao["Acertou"].sum()
+    taxa = acertos / total if total > 0 else np.nan
+
+    ganhos = df_regiao[df_regiao["Acertou"]]["SignalPnL"].dropna()
+    perdas = df_regiao[~df_regiao["Acertou"]]["SignalPnL"].dropna()
+
+    media_ganho = ganhos.mean() if not ganhos.empty else np.nan
+    media_perda = perdas.mean() if not perdas.empty else np.nan
+
+    total_ganho = ganhos.sum() if not ganhos.empty else np.nan
+    total_perda = perdas.sum() if not perdas.empty else np.nan
+
+    payoff_rr = np.nan
+    if not np.isnan(media_ganho) and not np.isnan(media_perda) and media_perda != 0:
+        payoff_rr = abs(media_ganho / media_perda)
+
+    fator_lucro = np.nan
+    if not np.isnan(total_ganho) and not np.isnan(total_perda) and total_perda != 0:
+        fator_lucro = abs(total_ganho / total_perda)
+
+    exp = np.nan
+    if not np.isnan(media_ganho) and not np.isnan(media_perda) and not np.isnan(taxa):
+        exp = taxa * media_ganho + (1 - taxa) * media_perda
+
+    return {
+        "entradas": total,
+        "taxa": taxa,
+        "ganho_medio": media_ganho,
+        "perda_medio": media_perda,
+        "payoff_rr": payoff_rr,
+        "fator_lucro": fator_lucro,
+        "E": exp,
+    }
+
+# --- Interface Principal ---
+
+def main() -> None:
+    # --- Sidebar ---
+    with st.sidebar:
+        st.image(LOGO_URL, use_container_width=True)
+        st.divider()
+        st.header("⚙️ Configurações")
+        
+        default_csv = Path("tcim_backtest_results.csv")
+        csv_path_str = st.text_input("Arquivo CSV", value=str(default_csv))
+        csv_path = Path(csv_path_str)
+        
+        if not csv_path.exists():
+            st.error(f"Arquivo não encontrado: {csv_path}")
+            return
+
+        df = load_data(csv_path)
+        if df.empty:
+            st.warning("CSV vazio ou inválido.")
+            return
+
+        df["PnL"] = compute_directional_pnl(df)
+        df_entries = df[df["PnL"].notna()].copy()
+
+        st.subheader("Filtros")
+        regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
+        regioes_sel = st.multiselect("Regiões", options=regioes_disponiveis, default=regioes_disponiveis)
+        
+        min_date = df_entries["DateParsed"].min()
+        max_date = df_entries["DateParsed"].max()
+        
+        date_range = st.date_input(
+            "Período",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+        )
+        
+        if len(date_range) == 2:
+            start_date, end_date = date_range
+        else:
+            start_date, end_date = min_date, max_date
+
+        st.subheader("Gestão de Capital")
+        capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
+        stake = st.number_input("Stake por Trade ($)", min_value=1.0, value=100.0, step=10.0)
+        n_piores = st.slider("Listar top perdas", 3, 50, 10)
+
+        st.info(f"Total de registros brutos: {len(df)}")
+
+    # --- Filtros Aplicados ---
+    mask = pd.Series(True, index=df_entries.index)
+    if regioes_sel:
+        mask &= df_entries["Region"].isin(regioes_sel)
+    mask &= df_entries["DateParsed"].between(pd.to_datetime(start_date), pd.to_datetime(end_date))
+
+    df_filtered = df_entries[mask].copy()
+    df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
+
+    # Ordena cronologicamente para curva
+    df_filtered = df_filtered.sort_values("AnalysisUTC")
+    
+    # Cálculos Globais Filtrados
+    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, stake)
+    df_filtered["Capital"] = capital.values
+    df_filtered["RetornoAcum"] = ret_cum.values
+
+    # --- Header Principal ---
+    st.title("📊 Relatório de Performance TCIM")
+    st.markdown(f"**Período:** {start_date} a {end_date} | **Regiões:** {', '.join(regioes_sel) if regioes_sel else 'Todas'}")
+
+    if df_filtered.empty:
+        st.warning("⚠️ Nenhuma entrada encontrada com os filtros selecionados.")
+        return
+
+    # --- KPIs Globais (Top Row) ---
+    
+    # Prepara dados para estatísticas globais
+    df_stats_global = df_filtered[df_filtered["TCIM_Vies"].notna() & (df_filtered["TCIM_Vies"] != "FORA")].copy()
+    
+    if not df_stats_global.empty:
+        df_stats_global["ReferenciaBias"] = df_stats_global["ReferenciaBias"].fillna("")
+        df_stats_global["Acertou"] = df_stats_global["ReferenciaBias"] == df_stats_global["TCIM_Vies"]
+        df_stats_global["SignalPnL"] = np.where(
+            df_stats_global["TCIM_Vies"] == "COMPRA",
+            pd.to_numeric(df_stats_global["Up"], errors="coerce"),
+            pd.to_numeric(df_stats_global["Down"], errors="coerce"),
+        )
+        
+        metrics_global = _region_metrics(df_stats_global)
+        
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        
+        final_capital = df_filtered["Capital"].iloc[-1]
+        roi_total = ((final_capital - capital_inicial) / capital_inicial) * 100
+        
+        kpi1.metric("Capital Final", f"${final_capital:,.2f}", f"{roi_total:+.2f}%")
+        kpi2.metric("Total Trades", metrics_global["entradas"])
+        kpi3.metric("Win Rate Global", f"{metrics_global['taxa']*100:.2f}%")
+        kpi4.metric("Fator de Lucro", f"{metrics_global['fator_lucro']:.2f}")
+    
+    st.divider()
+
+    # --- Abas de Conteúdo ---
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Curva de Capital", "🌍 Análise Regional", "📅 Análise Mensal", "📉 Piores Trades & Dados"])
+
+    with tab1:
+        st.subheader("Evolução Simulada do Patrimônio")
+        fig = px.line(
+            df_filtered, 
+            x="AnalysisUTC", 
+            y="Capital", 
+            color="Region",
+            title="Crescimento do Capital por Região",
+            markers=True,
+            template="plotly_dark"
+        )
+        fig.update_layout(hovermode="x unified")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab2:
+        st.subheader("Performance Detalhada por Região")
+        region_stats_rows = []
+        for reg, df_reg in df_stats_global.groupby("Region"):
+            stats = _region_metrics(df_reg)
+            region_stats_rows.append({
+                "Região": reg,
+                "Trades": stats["entradas"],
+                "Taxa Acerto": stats["taxa"], # Manter decimal para formatar depois
+                "Ganho Médio": stats["ganho_medio"],
+                "Perda Média": stats["perda_medio"],
+                "Payoff (R:R)": stats["payoff_rr"],
+                "Fator Lucro": stats["fator_lucro"],
+                "Expectativa (E)": stats["E"],
+            })
+        
+        df_region_view = pd.DataFrame(region_stats_rows)
+        
+        # Configuração visual da tabela
+        st.dataframe(
+            df_region_view,
+            column_config={
+                "Taxa Acerto": st.column_config.ProgressColumn(
+                    "Taxa de Acerto",
+                    format="%.2f%%",
+                    min_value=0,
+                    max_value=1,
+                ),
+                "Ganho Médio": st.column_config.NumberColumn(format="$%.4f"),
+                "Perda Média": st.column_config.NumberColumn(format="$%.4f"),
+                "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
+                "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
+                "Expectativa (E)": st.column_config.NumberColumn(format="%.4f"),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+
+    with tab3:
+        st.subheader("Consistência Mensal")
+        monthly_rows = []
+        for (reg, mes), df_group in df_stats_global.groupby(["Region", "Mes"]):
+            stats = _region_metrics(df_group)
+            monthly_rows.append({
+                "Região": reg,
+                "Mês": mes,
+                "Trades": stats["entradas"],
+                "Taxa Acerto": stats["taxa"],
+                "Payoff (R:R)": stats["payoff_rr"],
+                "Fator Lucro": stats["fator_lucro"],
+            })
+        
+        df_monthly_view = pd.DataFrame(monthly_rows).sort_values(["Região", "Mês"])
+        
+        st.dataframe(
+            df_monthly_view,
+            column_config={
+                "Taxa Acerto": st.column_config.NumberColumn(format="%.2f%%"),
+                "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
+                "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+
+    with tab4:
+        col_worst, col_raw = st.columns([1, 2])
+        
+        with col_worst:
+            st.markdown(f"### Top {n_piores} Maiores Perdas")
+            perdas = df_filtered[df_filtered["PnL"] < 0].nsmallest(n_piores, "PnL")
+            st.dataframe(
+                perdas[["Date", "Region", "Symbol", "PnL"]],
+                column_config={
+                    "PnL": st.column_config.NumberColumn(format="$%.4f")
+                },
+                hide_index=True
+            )
+        
+        with col_raw:
+            st.markdown("### Dados Completos")
+            st.dataframe(
+                df_filtered[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]],
+                height=400,
+                column_config={
+                    "PnL": st.column_config.NumberColumn(format="$%.4f")
+                }
+            )
+
+if __name__ == "__main__":
+    main()
