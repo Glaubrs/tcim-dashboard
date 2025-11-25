@@ -176,17 +176,16 @@ def main() -> None:
 
     # --- KPIs Globais (Top Row) ---
     
-    # Prepara dados para estatísticas globais
+    # Prepara dados para estatísticas globais (acerto = PnL > 0)
     df_stats_global = df_filtered[df_filtered["TCIM_Vies"].notna() & (df_filtered["TCIM_Vies"] != "FORA")].copy()
     
     if not df_stats_global.empty:
-        df_stats_global["ReferenciaBias"] = df_stats_global["ReferenciaBias"].fillna("")
-        df_stats_global["Acertou"] = df_stats_global["ReferenciaBias"] == df_stats_global["TCIM_Vies"]
         df_stats_global["SignalPnL"] = np.where(
             df_stats_global["TCIM_Vies"] == "COMPRA",
             pd.to_numeric(df_stats_global["Up"], errors="coerce"),
             pd.to_numeric(df_stats_global["Down"], errors="coerce"),
         )
+        df_stats_global["Acertou"] = df_stats_global["SignalPnL"] > 0
         
         metrics_global = _region_metrics(df_stats_global)
         
