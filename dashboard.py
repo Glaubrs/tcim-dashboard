@@ -49,13 +49,18 @@ def compute_directional_pnl(df: pd.DataFrame) -> pd.Series:
 def equity_curve(
     pnl: pd.Series,
     initial_capital: float,
-    stake_per_trade: float,
+    stake_per_trade: float | pd.Series,
 ) -> Tuple[pd.Series, pd.Series]:
     pnl = pnl.fillna(0.0)
+    stake_series = (
+        pd.Series(stake_per_trade, index=pnl.index)
+        if isinstance(stake_per_trade, (int, float))
+        else pd.Series(stake_per_trade).reindex(pnl.index).fillna(0.0)
+    )
     capital_values = []
     capital = initial_capital
-    for val in pnl:
-        capital += stake_per_trade * val
+    for val, stake in zip(pnl, stake_series):
+        capital += stake * val
         capital_values.append(capital)
     capital_series = pd.Series(capital_values, index=pnl.index)
     growth = (capital_series / initial_capital) - 1.0
@@ -144,7 +149,16 @@ def main() -> None:
 
         st.subheader("Gestão de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        stake = st.number_input("Caixa por Trade ($)", min_value=1.0, value=100.0, step=10.0)
+        stake = st.number_input("Caixa por Trade ($) - Padr�o", min_value=1.0, value=100.0, step=10.0)
+        st.caption("Overrides por regi�o (opcional)")
+        stake_por_regiao: dict[str, float] = {}
+        for reg in regioes_disponiveis:
+            stake_por_regiao[reg] = st.number_input(
+                f"Caixa por Trade ($) - {reg}",
+                min_value=0.0,
+                value=stake,
+                step=10.0,
+            )
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
 
         st.info(f"Total de registros brutos: {len(df)}")
@@ -160,9 +174,11 @@ def main() -> None:
 
     # Ordena cronologicamente para curva
     df_filtered = df_filtered.sort_values("AnalysisUTC")
+    # Caixa por trade aplicando overrides por regiao
+    df_filtered["StakeRegion"] = df_filtered["Region"].map(stake_por_regiao).fillna(stake)
     
     # Cálculos Globais Filtrados
-    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, stake)
+    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, df_filtered["StakeRegion"])
     df_filtered["Capital"] = capital.values
     df_filtered["RetornoAcum"] = ret_cum.values
 
