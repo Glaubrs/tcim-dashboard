@@ -244,6 +244,19 @@ O TCIM (Tendencia, Contexto, Impulso e Mitigacao) gera vies probabilistico (comp
 Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediario fora. Cada decisao vem com motivos e alertas.
 """
         )
+        st.markdown(
+            """
+### 🤖 **Sincronize-se com o Mercado!**
+
+Receba o vies analitico do TCIM e alertas de risco 
+diretamente no seu Telegram antes da abertura:
+
+⏰ **Horarios de Disparo (Pre-Sessao):**
+🇺🇸 **America:** 10:15
+🇯🇵 **Asia:** 20:30
+🇪🇺 **Europe:** 03:30
+"""
+        )
         telegram_path = Path("telegram.png")
         if telegram_path.exists():
             img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
