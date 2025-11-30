@@ -242,7 +242,7 @@ O TCIM (Tendencia, Contexto, Impulso e Mitigacao) gera vies probabilistico (comp
 
 Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediario fora. Cada decisao vem com motivos e alertas.
 
-Quer receber as leituras direto no Telegram? Fale com o bot: @TCIM_viesBot.
+Quer receber as leituras direto no Telegram? Clique aqui: [![Telegram](telegram.png)](https://t.me/TCIM_viesBot) ou fale com o bot: [@TCIM_viesBot](https://t.me/TCIM_viesBot).
 """
         )
 
