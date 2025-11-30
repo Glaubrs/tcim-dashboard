@@ -245,18 +245,20 @@ Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; int
 """
         )
         st.markdown(
-            """
+    """
 ### 🤖 **Sincronize-se com o Mercado!**
 
-Receba o vies analitico do TCIM e alertas de risco 
-diretamente no seu Telegram antes da abertura:
+Receba o viés analítico do TCIM e alertas de risco<br>
+diretamente no seu Telegram antes da abertura:<br><br>
 
-⏰ **Horarios de Disparo (Pre-Sessao):**
-🇺🇸 **America:** 10:15
-🇯🇵 **Asia:** 20:30
-🇪🇺 **Europe:** 03:30
-"""
-        )
+⏰ **Horários de Disparo (Pré-Sessão):**<br>
+🇺🇸 **América:** 10:15<br>
+🇯🇵 **Ásia:** 20:30<br>
+🇪🇺 **Europa:** 03:30
+""",
+    unsafe_allow_html=True
+)
+
         telegram_path = Path("telegram.png")
         if telegram_path.exists():
             img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
