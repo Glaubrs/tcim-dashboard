@@ -246,10 +246,10 @@ Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; int
         )
         st.markdown(
     """
-### 🤖 **Sincronize-se com o Mercado!**
+### **Sincronize-se com o Mercado!**
 
-Receba o viés analítico do TCIM e alertas de risco<br>
-diretamente no seu Telegram antes da abertura:<br><br>
+Receba o viés analítico do TCIM e alertas de risco 
+diretamente no seu Telegram antes da abertura:<br>
 
 ⏰ **Horários de Disparo (Pré-Sessão):**<br>
 🇺🇸 **América:** 10:15<br>
