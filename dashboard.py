@@ -5,6 +5,7 @@ Dashboard interativo do backtest TCIM.
 from __future__ import annotations
 
 from pathlib import Path
+import base64
 from typing import Tuple
 
 import numpy as np
@@ -241,10 +242,20 @@ O TCIM (Tendencia, Contexto, Impulso e Mitigacao) gera vies probabilistico (comp
 - Mitigacao: alerta de volatilidade extrema, pavios e esticamentos.
 
 Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediario fora. Cada decisao vem com motivos e alertas.
-
-Quer receber as leituras direto no Telegram? Clique aqui: [![Telegram](telegram.png)](https://t.me/TCIM_viesBot) ou fale com o bot: [@TCIM_viesBot](https://t.me/TCIM_viesBot).
 """
         )
+        telegram_path = Path("telegram.png")
+        if telegram_path.exists():
+            img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
+            st.markdown(
+                f'<a href="https://t.me/TCIM_viesBot" target="_blank" rel="noopener">'
+                f'<img src="data:image/png;base64,{img_b64}" alt="Telegram" style="height:24px;vertical-align:middle;margin-right:8px;">'
+                f'</a>'
+                f'<a href="https://t.me/TCIM_viesBot" target="_blank" rel="noopener">@TCIM_viesBot</a>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown('[@TCIM_viesBot](https://t.me/TCIM_viesBot)')
 
     with tab_curva:
         st.subheader("Evolucao Simulada do Patrimonio")
