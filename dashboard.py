@@ -1,6 +1,7 @@
 """
 Dashboard interativo do backtest TCIM.
 """
+# -*- coding: utf-8 -*-
 
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# Primeira chamada do Streamlit: configuracao da pagina
+# Primeira chamada do Streamlit: configuração da página
 st.set_page_config(
     page_title="TCIM Dashboard",
     page_icon="TCIM",
@@ -22,7 +23,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------
-# Funcoes de suporte
+# Funções de suporte
 # ------------------------------------------------------
 
 @st.cache_data
@@ -39,6 +40,7 @@ def load_data(csv_path: Path) -> pd.DataFrame:
 
 def compute_directional_pnl(df: pd.DataFrame) -> pd.Series:
     pnl = pd.Series(np.nan, index=df.index, dtype="float")
+    # Mantive as strings de comparação sem acento caso o CSV venha sem acento
     buys = df["TCIM_Vies"] == "COMPRA"
     sells = df["TCIM_Vies"] == "VENDA"
     pnl.loc[buys] = pd.to_numeric(df.loc[buys, "Up"], errors="coerce")
@@ -117,19 +119,19 @@ def main() -> None:
         if logo_path.exists():
             st.image(str(logo_path), use_container_width=True)
         st.divider()
-        st.header("Configuracoes")
+        st.header("Configurações")
 
         default_csv = Path("tcim_backtest_results.csv")
         csv_path_str = st.text_input("Arquivo CSV", value=str(default_csv))
         csv_path = Path(csv_path_str)
 
         if not csv_path.exists():
-            st.error(f"Arquivo nao encontrado: {csv_path}")
+            st.error(f"Arquivo não encontrado: {csv_path}")
             return
 
         df = load_data(csv_path)
         if df.empty:
-            st.warning("CSV vazio ou invalido.")
+            st.warning("CSV vazio ou inválido.")
             return
 
         df["PnL"] = compute_directional_pnl(df)
@@ -137,13 +139,13 @@ def main() -> None:
 
         st.subheader("Filtros")
         regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
-        regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
+        regioes_sel = st.multiselect("Regiões", options=regioes_disponiveis, default=regioes_disponiveis)
 
         min_date = df_entries["DateParsed"].min()
         max_date = df_entries["DateParsed"].max()
 
         date_range = st.date_input(
-            "Periodo",
+            "Período",
             value=(min_date, max_date),
             min_value=min_date,
             max_value=max_date,
@@ -154,9 +156,9 @@ def main() -> None:
         else:
             start_date, end_date = min_date, max_date
 
-        st.subheader("Gestao de Capital")
+        st.subheader("Gestão de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o caixa por trade para cada regiao")
+        st.caption("Informe o caixa por trade para cada região")
         stake_por_regiao: dict[str, float] = {}
         default_stake = 100.0
         for reg in regioes_disponiveis:
@@ -190,9 +192,9 @@ def main() -> None:
     df_filtered["RetornoAcum"] = ret_cum.values
 
     # Header
-    st.title("Relatorio de Performance TCIM")
+    st.title("Relatório de Performance TCIM")
     st.markdown(
-        f"**Periodo:** {start_date} a {end_date} | **Regioes:** {', '.join(regioes_sel) if regioes_sel else 'Todas'}"
+        f"**Período:** {start_date} a {end_date} | **Regiões:** {', '.join(regioes_sel) if regioes_sel else 'Todas'}"
     )
 
     if df_filtered.empty:
@@ -226,22 +228,22 @@ def main() -> None:
 
     # Abas
     tab_metodo, tab_curva, tab_regiao, tab_mensal, tab_trades = st.tabs(
-        ["Metodo", "Curva de Capital", "Analise Regional", "Analise Mensal", "Piores Trades & Dados"]
+        ["Método", "Curva de Capital", "Análise Regional", "Análise Mensal", "Piores Trades & Dados"]
     )
 
     with tab_metodo:
-        st.subheader("Sobre o Metodo TCIM")
+        st.subheader("Sobre o Método TCIM")
         st.markdown(
             """
-O TCIM (Tendencia, Contexto, Impulso e Mitigacao) gera vies probabilistico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Asia, Europa e America.
+O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
 
 **Blocos**
-- Tendencia: EMAs 20/50 e slopes.
-- Contexto: preco vs VWAP/EMA50 e distancia em ATR.
+- Tendência: EMAs 20/50 e slopes.
+- Contexto: preço vs VWAP/EMA50 e distância em ATR.
 - Impulso: ADX.
-- Mitigacao: alerta de volatilidade extrema, pavios e esticamentos.
+- Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
 
-Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediario fora. Cada decisao vem com motivos e alertas.
+Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
 """
         )
         st.markdown(
@@ -273,13 +275,13 @@ diretamente no seu Telegram antes da abertura:<br>
             st.markdown('[@TCIM_viesBot](https://t.me/TCIM_viesBot)')
 
     with tab_curva:
-        st.subheader("Evolucao Simulada do Patrimonio")
+        st.subheader("Evolução Simulada do Patrimônio")
         fig = px.line(
             df_filtered,
             x="AnalysisUTC",
             y="Capital",
             color="Region",
-            title="Crescimento do Capital por Regiao",
+            title="Crescimento do Capital por Região",
             markers=True,
             template="plotly_dark",
         )
@@ -295,21 +297,21 @@ diretamente no seu Telegram antes da abertura:<br>
         avg_stake = df_filtered["StakeRegion"].mean()
         boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
         st.markdown(
-            f"**Drawdown maximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} absoluto) ou {boxes_lost:.2f} caixas medias"
+            f"**Drawdown máximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} absoluto) ou {boxes_lost:.2f} caixas médias"
         )
 
     with tab_regiao:
-        st.subheader("Performance Detalhada por Regiao")
+        st.subheader("Performance Detalhada por Região")
         region_stats_rows = []
         for reg, df_reg in df_stats_global.groupby("Region"):
             stats = _region_metrics(df_reg)
             region_stats_rows.append(
                 {
-                    "Regiao": reg,
+                    "Região": reg,
                     "Trades": stats["entradas"],
                     "Taxa Acerto": stats["taxa"],
-                    "Ganho Medio": stats["ganho_medio"],
-                    "Perda Media": stats["perda_medio"],
+                    "Ganho Médio": stats["ganho_medio"],
+                    "Perda Média": stats["perda_medio"],
                     "Payoff (R:R)": stats["payoff_rr"],
                     "Fator Lucro": stats["fator_lucro"],
                     "Expectativa (E)": stats["E"],
@@ -327,8 +329,8 @@ diretamente no seu Telegram antes da abertura:<br>
                     min_value=0,
                     max_value=1,
                 ),
-                "Ganho Medio": st.column_config.NumberColumn(format="$%.4f"),
-                "Perda Media": st.column_config.NumberColumn(format="$%.4f"),
+                "Ganho Médio": st.column_config.NumberColumn(format="$%.4f"),
+                "Perda Média": st.column_config.NumberColumn(format="$%.4f"),
                 "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
                 "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
                 "Expectativa (E)": st.column_config.NumberColumn(format="%.4f"),
@@ -338,13 +340,13 @@ diretamente no seu Telegram antes da abertura:<br>
         )
 
     with tab_mensal:
-        st.subheader("Consistencia Mensal")
+        st.subheader("Consistência Mensal")
         monthly_rows = []
         for (reg, mes), df_group in df_stats_global.groupby(["Region", "Mes"]):
             stats = _region_metrics(df_group)
             monthly_rows.append(
                 {
-                    "Regiao": reg,
+                    "Região": reg,
                     "Mes": mes,
                     "Trades": stats["entradas"],
                     "Taxa Acerto": stats["taxa"],
@@ -353,7 +355,7 @@ diretamente no seu Telegram antes da abertura:<br>
                 }
             )
 
-        df_monthly_view = pd.DataFrame(monthly_rows).sort_values(["Regiao", "Mes"])
+        df_monthly_view = pd.DataFrame(monthly_rows).sort_values(["Região", "Mes"])
 
         st.dataframe(
             df_monthly_view,
