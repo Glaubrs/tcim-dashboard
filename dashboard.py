@@ -241,6 +241,8 @@ O TCIM (Tendencia, Contexto, Impulso e Mitigacao) gera vies probabilistico (comp
 - Mitigacao: alerta de volatilidade extrema, pavios e esticamentos.
 
 Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediario fora. Cada decisao vem com motivos e alertas.
+
+Quer receber as leituras direto no Telegram? Fale com o bot: @TCIM_viesBot.
 """
         )
 
