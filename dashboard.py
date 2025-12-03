@@ -118,6 +118,32 @@ def _region_metrics(df_regiao: pd.DataFrame) -> dict:
     }
 
 
+def _default_version_for_region(regiao: str) -> str | None:
+    live_map = DEFAULT_ACTIVE_VERSION_BY_REGION or {}
+    backtest_map = DEFAULT_BACKTEST_VERSION_BY_REGION or {}
+    val = live_map.get(regiao)
+    if val is None:
+        val = backtest_map.get(regiao)
+    if isinstance(val, (list, tuple)):
+        return val[0] if val else None
+    return str(val) if val is not None else None
+
+
+def _available_versions_for_region(regiao: str, df_entries: pd.DataFrame) -> list[str]:
+    configured = DEFAULT_BACKTEST_VERSION_BY_REGION.get(regiao, []) or []
+    if not isinstance(configured, list):
+        configured = [configured]
+    from_csv = (
+        df_entries.loc[df_entries["Region"] == regiao, "Version"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+    combined = sorted({*configured, *from_csv})
+    return combined
+
+
 # ------------------------------------------------------
 # Interface principal
 # ------------------------------------------------------
@@ -147,33 +173,15 @@ def main() -> None:
             st.warning("CSV vazio ou invalido.")
             return
 
-        df["PnL"] = compute_directional_pnl(df)
-        df_entries = df[df["PnL"].notna()].copy()
+    df["PnL"] = compute_directional_pnl(df)
+    df_entries = df[df["PnL"].notna()].copy()
 
-        st.subheader("Filtros")
-        regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
-        regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
-
-    def _default_version_for_region(regiao: str) -> str | None:
-        live_map = DEFAULT_ACTIVE_VERSION_BY_REGION or {}
-        backtest_map = DEFAULT_BACKTEST_VERSION_BY_REGION or {}
-        val = live_map.get(regiao)
-        if val is None:
-            val = backtest_map.get(regiao)
-        if isinstance(val, (list, tuple)):
-            return val[0] if val else None
-        return str(val) if val is not None else None
-
+    st.subheader("Filtros")
+    regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
+    regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
     versao_sel_por_regiao: dict[str, str | None] = {}
     for reg in regioes_disponiveis:
-        versoes = (
-            df_entries.loc[df_entries["Region"] == reg, "Version"]
-            .dropna()
-            .astype(str)
-            .unique()
-            .tolist()
-        )
-        versoes.sort()
+        versoes = _available_versions_for_region(reg, df_entries)
         default_version = _default_version_for_region(reg) or "Todas"
         opcoes = ["Todas"] + versoes
         selecao = st.selectbox(
