@@ -14,7 +14,17 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-import config
+# Defaults replicados localmente para evitar depender do config em ambiente GitHub.
+DEFAULT_BACKTEST_VERSION_BY_REGION = {
+    "America": ["1.2.3", "1.0.3"],
+    "Asia": ["1.2.1", "1.0.1"],
+    "Europe": ["1.2.2", "1.0.2"],
+}
+DEFAULT_ACTIVE_VERSION_BY_REGION = {
+    "America": "1.2.3",
+    "Asia": "1.2.1",
+    "Europe": "1.2.2",
+}
 
 # Primeira chamada do Streamlit: configuração da página
 st.set_page_config(
@@ -144,12 +154,12 @@ def main() -> None:
         regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
         regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
 
-        def _default_version_for_region(regiao: str) -> str | None:
-            live_map = getattr(config, "ACTIVE_VERSION_BY_REGION", {}) or {}
-            backtest_map = getattr(config, "BACKTEST_VERSION_BY_REGION", {}) or {}
-            val = live_map.get(regiao)
-            if val is None:
-                val = backtest_map.get(regiao)
+    def _default_version_for_region(regiao: str) -> str | None:
+        live_map = DEFAULT_ACTIVE_VERSION_BY_REGION or {}
+        backtest_map = DEFAULT_BACKTEST_VERSION_BY_REGION or {}
+        val = live_map.get(regiao)
+        if val is None:
+            val = backtest_map.get(regiao)
             if isinstance(val, (list, tuple)):
                 return val[0] if val else None
             return str(val) if val is not None else None
