@@ -160,60 +160,60 @@ def main() -> None:
         val = live_map.get(regiao)
         if val is None:
             val = backtest_map.get(regiao)
-            if isinstance(val, (list, tuple)):
-                return val[0] if val else None
-            return str(val) if val is not None else None
+        if isinstance(val, (list, tuple)):
+            return val[0] if val else None
+        return str(val) if val is not None else None
 
-        versao_sel_por_regiao: dict[str, str | None] = {}
-        for reg in regioes_disponiveis:
-            versoes = (
-                df_entries.loc[df_entries["Region"] == reg, "Version"]
-                .dropna()
-                .astype(str)
-                .unique()
-                .tolist()
-            )
-            versoes.sort()
-            default_version = _default_version_for_region(reg) or "Todas"
-            opcoes = ["Todas"] + versoes
-            selecao = st.selectbox(
-                f"Versao - {reg}",
-                options=opcoes,
-                index=opcoes.index(default_version) if default_version in opcoes else 0,
-            )
-            versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
+    versao_sel_por_regiao: dict[str, str | None] = {}
+    for reg in regioes_disponiveis:
+        versoes = (
+            df_entries.loc[df_entries["Region"] == reg, "Version"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+        versoes.sort()
+        default_version = _default_version_for_region(reg) or "Todas"
+        opcoes = ["Todas"] + versoes
+        selecao = st.selectbox(
+            f"Versao - {reg}",
+            options=opcoes,
+            index=opcoes.index(default_version) if default_version in opcoes else 0,
+        )
+        versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
 
-        min_date = df_entries["DateParsed"].min()
-        max_date = df_entries["DateParsed"].max()
+    min_date = df_entries["DateParsed"].min()
+    max_date = df_entries["DateParsed"].max()
 
-        date_range = st.date_input(
-            "Periodo",
-            value=(min_date, max_date),
-            min_value=min_date,
-            max_value=max_date,
+    date_range = st.date_input(
+        "Periodo",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+    )
+
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        start_date, end_date = min_date, max_date
+
+    st.subheader("Gestao de Capital")
+    capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
+    st.caption("Informe o caixa por trade para cada regiao")
+    stake_por_regiao: dict[str, float] = {}
+    default_stake = 100.0
+    for reg in regioes_disponiveis:
+        stake_por_regiao[reg] = st.number_input(
+            f"Caixa por Trade ($) - {reg}",
+            min_value=0.0,
+            value=default_stake,
+            step=10.0,
         )
 
-        if len(date_range) == 2:
-            start_date, end_date = date_range
-        else:
-            start_date, end_date = min_date, max_date
+    n_piores = st.slider("Listar top perdas", 3, 50, 10)
 
-        st.subheader("Gestao de Capital")
-        capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o caixa por trade para cada regiao")
-        stake_por_regiao: dict[str, float] = {}
-        default_stake = 100.0
-        for reg in regioes_disponiveis:
-            stake_por_regiao[reg] = st.number_input(
-                f"Caixa por Trade ($) - {reg}",
-                min_value=0.0,
-                value=default_stake,
-                step=10.0,
-            )
-
-        n_piores = st.slider("Listar top perdas", 3, 50, 10)
-
-        st.info(f"Total de registros brutos: {len(df)}")
+    st.info(f"Total de registros brutos: {len(df)}")
 
     # Filtros aplicados
     mask = pd.Series(True, index=df_entries.index)
