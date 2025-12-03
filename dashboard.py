@@ -14,6 +14,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+import config
+
 # Primeira chamada do Streamlit: configuração da página
 st.set_page_config(
     page_title="TCIM Dashboard",
@@ -115,23 +117,24 @@ def main() -> None:
     logo_path = Path("logo.png")
 
     # Sidebar
+
     with st.sidebar:
         if logo_path.exists():
             st.image(str(logo_path), use_container_width=True)
         st.divider()
-        st.header("Configurações")
+        st.header("Configuracoes")
 
         default_csv = Path("tcim_backtest_results.csv")
         csv_path_str = st.text_input("Arquivo CSV", value=str(default_csv))
         csv_path = Path(csv_path_str)
 
         if not csv_path.exists():
-            st.error(f"Arquivo não encontrado: {csv_path}")
+            st.error(f"Arquivo nao encontrado: {csv_path}")
             return
 
         df = load_data(csv_path)
         if df.empty:
-            st.warning("CSV vazio ou inválido.")
+            st.warning("CSV vazio ou invalido.")
             return
 
         df["PnL"] = compute_directional_pnl(df)
@@ -139,13 +142,42 @@ def main() -> None:
 
         st.subheader("Filtros")
         regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
-        regioes_sel = st.multiselect("Regiões", options=regioes_disponiveis, default=regioes_disponiveis)
+        regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
+
+        def _default_version_for_region(regiao: str) -> str | None:
+            live_map = getattr(config, "ACTIVE_VERSION_BY_REGION", {}) or {}
+            backtest_map = getattr(config, "BACKTEST_VERSION_BY_REGION", {}) or {}
+            val = live_map.get(regiao)
+            if val is None:
+                val = backtest_map.get(regiao)
+            if isinstance(val, (list, tuple)):
+                return val[0] if val else None
+            return str(val) if val is not None else None
+
+        versao_sel_por_regiao: dict[str, str | None] = {}
+        for reg in regioes_disponiveis:
+            versoes = (
+                df_entries.loc[df_entries["Region"] == reg, "Version"]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+            versoes.sort()
+            default_version = _default_version_for_region(reg) or "Todas"
+            opcoes = ["Todas"] + versoes
+            selecao = st.selectbox(
+                f"Versao - {reg}",
+                options=opcoes,
+                index=opcoes.index(default_version) if default_version in opcoes else 0,
+            )
+            versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
 
         min_date = df_entries["DateParsed"].min()
         max_date = df_entries["DateParsed"].max()
 
         date_range = st.date_input(
-            "Período",
+            "Periodo",
             value=(min_date, max_date),
             min_value=min_date,
             max_value=max_date,
@@ -156,9 +188,9 @@ def main() -> None:
         else:
             start_date, end_date = min_date, max_date
 
-        st.subheader("Gestão de Capital")
+        st.subheader("Gestao de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o caixa por trade para cada região")
+        st.caption("Informe o caixa por trade para cada regiao")
         stake_por_regiao: dict[str, float] = {}
         default_stake = 100.0
         for reg in regioes_disponiveis:
@@ -177,9 +209,16 @@ def main() -> None:
     mask = pd.Series(True, index=df_entries.index)
     if regioes_sel:
         mask &= df_entries["Region"].isin(regioes_sel)
+    version_series = df_entries["Version"].astype(str)
+    version_series = version_series.where(df_entries["Version"].notna(), "")
+    for reg, versao in versao_sel_por_regiao.items():
+        if versao:
+            mask &= ~((df_entries["Region"] == reg) & (version_series != versao))
     mask &= df_entries["DateParsed"].between(pd.to_datetime(start_date), pd.to_datetime(end_date))
 
     df_filtered = df_entries[mask].copy()
+    df_filtered["Version"] = df_filtered["Version"].astype(str)
+    df_filtered["Version"] = df_filtered["Version"].replace("nan", "")
     df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
 
     # Ordena cronologicamente para curva e aplica stake por regiao
@@ -375,7 +414,7 @@ diretamente no seu Telegram antes da abertura:<br>
             st.markdown(f"### Top {n_piores} Maiores Perdas")
             perdas = df_filtered[df_filtered["PnL"] < 0].nsmallest(n_piores, "PnL")
             st.dataframe(
-                perdas[["Date", "Region", "Symbol", "PnL"]],
+                perdas[["Date", "Region", "Version", "Symbol", "PnL"]],
                 column_config={"PnL": st.column_config.NumberColumn(format="$%.4f")},
                 hide_index=True,
             )
@@ -383,7 +422,7 @@ diretamente no seu Telegram antes da abertura:<br>
         with col_raw:
             st.markdown("### Dados Completos")
             st.dataframe(
-                df_filtered[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]],
+                df_filtered[["Date", "Region", "Version", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]],
                 height=400,
                 column_config={"PnL": st.column_config.NumberColumn(format="$%.4f")},
             )
