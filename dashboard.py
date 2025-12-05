@@ -300,7 +300,7 @@ O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico 
 - Impulso: ADX.
 - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
 
-Scores somam sinais positivos/negativos. Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
+Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
 """
         )
         st.markdown(
