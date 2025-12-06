@@ -14,6 +14,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+FAVICON_PATH = Path("favicon.ico")
+
 # Defaults replicados localmente para evitar depender do config em ambiente GitHub.
 DEFAULT_BACKTEST_VERSION_BY_REGION = {
     "America": ["1.2.3", "1.0.3"],
@@ -29,7 +31,7 @@ DEFAULT_ACTIVE_VERSION_BY_REGION = {
 # Primeira chamada do Streamlit: configuração da página
 st.set_page_config(
     page_title="TCIM Dashboard",
-    page_icon="TCIM",
+    page_icon=str(FAVICON_PATH) if FAVICON_PATH.exists() else "TCIM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
