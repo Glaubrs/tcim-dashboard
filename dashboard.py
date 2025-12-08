@@ -349,14 +349,27 @@ diretamente no seu Telegram antes da abertura:<br>
 
         capital_series = df_filtered["Capital"].reset_index(drop=True)
         capital_with_start = pd.concat([pd.Series([capital_inicial]), capital_series], ignore_index=True)
+        date_series = pd.concat(
+            [pd.Series([pd.NaT]), df_filtered["DateParsed"].reset_index(drop=True)],
+            ignore_index=True,
+        )
         pico = capital_with_start.cummax()
         dd_series = (capital_with_start - pico) / pico
         max_dd_pct = dd_series.min() if not dd_series.empty else 0.0
         max_dd_abs = (capital_with_start - pico).min() if not capital_with_start.empty else 0.0
         avg_stake = df_filtered["StakeRegion"].mean()
         boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
+        dd_period = ""
+        if not dd_series.empty:
+            trough_idx = int(dd_series.idxmin())
+            peak_until_trough = pico.iloc[: trough_idx + 1]
+            start_idx = int(peak_until_trough[peak_until_trough == peak_until_trough.max()].index[-1])
+            start_date_dd = date_series.iloc[start_idx]
+            end_date_dd = date_series.iloc[trough_idx]
+            if pd.notna(start_date_dd) and pd.notna(end_date_dd):
+                dd_period = f" - de {start_date_dd:%d/%m/%Y} ate {end_date_dd:%d/%m/%Y}"
         st.markdown(
-            f"**Drawdown máximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} absoluto) ou {boxes_lost:.2f} caixas médias"
+            f"**Drawdown máximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} absoluto) ou {boxes_lost:.2f} caixas médias{dd_period}"
         )
 
     with tab_regiao:
