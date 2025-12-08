@@ -362,9 +362,11 @@ diretamente no seu Telegram antes da abertura:<br>
         dd_period = ""
         if not dd_series.empty:
             trough_idx = int(dd_series.idxmin())
-            peak_until_trough = pico.iloc[: trough_idx + 1]
-            start_idx = int(peak_until_trough[peak_until_trough == peak_until_trough.max()].index[-1])
-            start_date_dd = date_series.iloc[start_idx]
+            peak_slice = capital_with_start.iloc[: trough_idx + 1]
+            peak_val = peak_slice.max()
+            peak_indices = peak_slice[peak_slice == peak_val].index
+            peak_idx = int(peak_indices[-1]) if len(peak_indices) else 0
+            start_date_dd = date_series.iloc[peak_idx]
             end_date_dd = date_series.iloc[trough_idx]
             if pd.notna(start_date_dd) and pd.notna(end_date_dd):
                 dd_period = f" - de {start_date_dd:%d/%m/%Y} ate {end_date_dd:%d/%m/%Y}"
