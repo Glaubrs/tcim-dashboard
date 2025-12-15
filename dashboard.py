@@ -314,7 +314,7 @@ diretamente no seu Telegram antes da abertura:<br>
 
 ⏰ **Horários de Disparo (Pré-Sessão):**<br>
 🇺🇸 **América:** 10:16 *(Versão 1.0.3 e 1.2.3)*<br>
-🇯🇵 **Ásia:** 20:31 *(Versão 1.0.4 e 1.2.1)*<br>
+🇯🇵 **Ásia:** 20:31 *(Versão 1.0.1 e 1.2.1)*<br>
 🇪🇺 **Europa:** 03:46 *(Versão 1.0.2 e 1.2.2)*
 """,
     unsafe_allow_html=True
