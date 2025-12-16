@@ -182,8 +182,10 @@ def main() -> None:
         regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
         regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
         versao_sel_por_regiao: dict[str, str | None] = {}
+        versoes_por_regiao: dict[str, list[str]] = {}
         for reg in regioes_disponiveis:
             versoes = _available_versions_for_region(reg, df_entries)
+            versoes_por_regiao[reg] = versoes
             default_version = _default_version_for_region(reg) or "Todas"
             opcoes = ["Todas"] + versoes
             selecao = st.selectbox(
@@ -210,16 +212,17 @@ def main() -> None:
 
         st.subheader("Gestao de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o caixa por trade para cada regiao")
-        stake_por_regiao: dict[str, float] = {}
+        st.caption("Informe o caixa por trade para cada regiao/versao")
+        stake_por_regiao_versao: dict[tuple[str, str], float] = {}
         default_stake = 100.0
         for reg in regioes_disponiveis:
-            stake_por_regiao[reg] = st.number_input(
-                f"Caixa por Trade ($) - {reg}",
-                min_value=0.0,
-                value=default_stake,
-                step=10.0,
-            )
+            for ver in versoes_por_regiao.get(reg, []):
+                stake_por_regiao_versao[(reg, ver)] = st.number_input(
+                    f"Caixa por Trade ($) - {reg} {ver}",
+                    min_value=0.0,
+                    value=default_stake,
+                    step=10.0,
+                )
 
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
 
@@ -243,10 +246,13 @@ def main() -> None:
 
     # Ordena cronologicamente para curva e aplica stake por regiao
     df_filtered = df_filtered.sort_values("AnalysisUTC")
-    df_filtered["StakeRegion"] = df_filtered["Region"].map(stake_por_regiao).fillna(0.0)
+    df_filtered["StakeRV"] = df_filtered.apply(
+        lambda row: stake_por_regiao_versao.get((row["Region"], row["Version"]), 0.0),
+        axis=1,
+    )
 
     # Calculos globais
-    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, df_filtered["StakeRegion"])
+    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, df_filtered["StakeRV"])
     df_filtered["Capital"] = capital.values
     df_filtered["RetornoAcum"] = ret_cum.values
 
@@ -357,7 +363,7 @@ diretamente no seu Telegram antes da abertura:<br>
         dd_series = (capital_with_start - pico) / pico
         max_dd_pct = dd_series.min() if not dd_series.empty else 0.0
         max_dd_abs = (capital_with_start - pico).min() if not capital_with_start.empty else 0.0
-        avg_stake = df_filtered["StakeRegion"].mean()
+        avg_stake = df_filtered["StakeRV"].mean()
         boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
         dd_period = ""
         if not dd_series.empty:
