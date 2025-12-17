@@ -162,7 +162,7 @@ def main() -> None:
             st.markdown(
                 f'<div style="text-align:center;">'
                 f'<img src="data:image/png;base64,{logo_b64}" style="width:100px;" />'
-             #   f'<div style="font-size:36px; font-weight:700; margin-top:6px;">TCIM</div>'
+                f'<div style="font-size:36px; font-weight:700; margin-top:6px;">TCIM</div>'
                 f"</div>",
                 unsafe_allow_html=True,
             )
