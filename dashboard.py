@@ -158,7 +158,8 @@ def main() -> None:
 
     with st.sidebar:
         if logo_path.exists():
-            st.image(str(logo_path), use_container_width=True)
+            st.image(str(logo_path), width=140)
+            st.markdown("**TCIM**")
         st.divider()
         st.header("Configuracoes")
 
