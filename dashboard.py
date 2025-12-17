@@ -337,14 +337,14 @@ diretamente no seu Telegram antes da abertura:<br>
         if telegram_path.exists():
             img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
             st.markdown(
-                f'<a href="https://t.me/TCIM_viesBot" target="_blank" rel="noopener">'
+                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">'
                 f'<img src="data:image/png;base64,{img_b64}" alt="Telegram" style="height:24px;vertical-align:middle;margin-right:8px;">'
                 f'</a>'
-                f'<a href="https://t.me/TCIM_viesBot" target="_blank" rel="noopener">@TCIM_viesBot</a>',
+                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">@TCIM_viesBot</a>',
                 unsafe_allow_html=True,
             )
         else:
-            st.markdown('[@TCIM_viesBot](https://t.me/TCIM_viesBot)')
+            st.markdown('[@TCIM_viesBot](https://t.me/+OB9T7OXQ2o1iYmJh)')
 
     with tab_curva:
         st.subheader("Evolução Simulada do Patrimônio")
