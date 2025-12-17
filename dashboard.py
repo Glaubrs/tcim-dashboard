@@ -340,11 +340,11 @@ diretamente no seu Telegram antes da abertura:<br>
                 f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">'
                 f'<img src="data:image/png;base64,{img_b64}" alt="Telegram" style="height:24px;vertical-align:middle;margin-right:8px;">'
                 f'</a>'
-                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">@TCIM_viesBot</a>',
+                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">2k Extra - Técnicas de Decisão</a>',
                 unsafe_allow_html=True,
             )
         else:
-            st.markdown('[@TCIM_viesBot](https://t.me/+OB9T7OXQ2o1iYmJh)')
+            st.markdown('[2k Extra - Técnicas de Decisão](https://t.me/+OB9T7OXQ2o1iYmJh)')
 
     with tab_curva:
         st.subheader("Evolução Simulada do Patrimônio")
