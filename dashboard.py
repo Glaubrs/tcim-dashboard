@@ -16,29 +16,7 @@ import streamlit as st
 import os
 import time
 
-stats_file = "backtest_stats.json"
 
-if os.path.exists(stats_file):
-    # Obtém o tempo da última modificação do arquivo
-    file_mtime = os.path.getmtime(stats_file)
-    
-    # Inicializa o estado se não existir
-    if "last_mtime" not in st.session_state:
-        st.session_state["last_mtime"] = file_mtime
-    
-    # Se o tempo do arquivo mudou desde a última vez
-    if file_mtime != st.session_state["last_mtime"]:
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        
-        # Atualiza o estado com o novo tempo
-        st.session_state["last_mtime"] = file_mtime
-        
-        # Opcional: Mostra um aviso visual (pode remover depois)
-        st.toast("Cache limpo! Novos dados de backtest detectados.", icon="🔄")
-        
-        # Força o rerun para garantir que os dados novos sejam carregados agora
-        st.rerun()
 
 
 FAVICON_PATH = Path("favicon.ico")
@@ -68,13 +46,14 @@ st.set_page_config(
 # ------------------------------------------------------
 
 @st.cache_data
-def load_data(csv_path: Path) -> pd.DataFrame:
+def load_data(csv_path: Path, mtime: float) -> pd.DataFrame:
     try:
+        # O argumento 'mtime' força o recarregamento se o arquivo mudou
         df = pd.read_csv(csv_path, sep=";")
         df["DateParsed"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
         df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
         return df
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"Erro ao ler CSV: {exc}")
         return pd.DataFrame()
 
@@ -204,7 +183,14 @@ def main() -> None:
             st.error(f"Arquivo nao encontrado: {csv_path}")
             return
 
-        df = load_data(csv_path)
+# --- ADICIONAR ESTAS LINHAS ---
+        # Obtém o timestamp da última modificação do arquivo
+        file_mtime = os.path.getmtime(csv_path)
+        
+        # Passa o timestamp para a função de carga
+        df = load_data(csv_path, file_mtime)
+        # ------------------------------
+       
         if df.empty:
             st.warning("CSV vazio ou invalido.")
             return
