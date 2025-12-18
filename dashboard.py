@@ -12,7 +12,15 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import os
 import streamlit as st
+
+stats_file = "backtest_stats.json"
+if os.path.exists(stats_file):
+    # limpa cache sempre que o arquivo existir (ou se a data mudar)
+    st.cache_data.clear()
+    st.cache_resource.clear()
+
 
 FAVICON_PATH = Path("favicon.ico")
 
