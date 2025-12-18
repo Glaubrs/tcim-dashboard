@@ -12,14 +12,33 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import os
 import streamlit as st
+import os
+import time
 
 stats_file = "backtest_stats.json"
+
 if os.path.exists(stats_file):
-    # limpa cache sempre que o arquivo existir (ou se a data mudar)
-    st.cache_data.clear()
-    st.cache_resource.clear()
+    # Obtém o tempo da última modificação do arquivo
+    file_mtime = os.path.getmtime(stats_file)
+    
+    # Inicializa o estado se não existir
+    if "last_mtime" not in st.session_state:
+        st.session_state["last_mtime"] = file_mtime
+    
+    # Se o tempo do arquivo mudou desde a última vez
+    if file_mtime != st.session_state["last_mtime"]:
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        
+        # Atualiza o estado com o novo tempo
+        st.session_state["last_mtime"] = file_mtime
+        
+        # Opcional: Mostra um aviso visual (pode remover depois)
+        st.toast("Cache limpo! Novos dados de backtest detectados.", icon="🔄")
+        
+        # Força o rerun para garantir que os dados novos sejam carregados agora
+        st.rerun()
 
 
 FAVICON_PATH = Path("favicon.ico")
