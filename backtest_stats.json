@@ -1,0 +1,20 @@
+{
+  "generated_at": "2025-12-17T09:58:01.555729+00:00",
+  "accuracy": 0.7641277641277642,
+  "total": 407,
+  "by_region": {
+    "America": {
+      "accuracy": 0.8016528925619835,
+      "total": 121
+    },
+    "Asia": {
+      "accuracy": 0.6689655172413793,
+      "total": 145
+    },
+    "Europe": {
+      "accuracy": 0.8297872340425532,
+      "total": 141
+    }
+  },
+  "days_without_loss": 5
+}
