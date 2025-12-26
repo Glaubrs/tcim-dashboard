@@ -89,6 +89,29 @@ def equity_curve(
     return capital_series, growth
 
 
+def _dynamic_stake_equity(
+    df_filtered: pd.DataFrame,
+    initial_capital: float,
+    stake_pct_map: dict[tuple[str, str], float],
+    reapply_map: dict[tuple[str, str], bool],
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    capital = initial_capital
+    stake_values = []
+    capital_values = []
+    for _, row in df_filtered.iterrows():
+        pct = stake_pct_map.get((row["Region"], row["Version"]), 0.0)
+        base = capital if reapply_map.get((row["Region"], row["Version"]), False) else initial_capital
+        stake = base * pct
+        pnl_val = row["PnL"] if pd.notna(row["PnL"]) else 0.0
+        capital += stake * pnl_val
+        stake_values.append(stake)
+        capital_values.append(capital)
+    stake_series = pd.Series(stake_values, index=df_filtered.index)
+    capital_series = pd.Series(capital_values, index=df_filtered.index)
+    growth = (capital_series / initial_capital) - 1.0
+    return stake_series, capital_series, growth
+
+
 def _region_metrics(df_regiao: pd.DataFrame) -> dict:
     total = len(df_regiao)
     acertos = df_regiao["Acertou"].sum()
@@ -232,17 +255,30 @@ def main() -> None:
 
         st.subheader("Gestao de Capital")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o caixa por trade para cada regiao/versao")
+        st.caption("Informe o percentual de caixa por trade para cada regiao/versao")
         stake_por_regiao_versao: dict[tuple[str, str], float] = {}
-        default_stake = 100.0
+        reapply_por_regiao_versao: dict[tuple[str, str], bool] = {}
+        default_percent = 10.0
         for reg in regioes_disponiveis:
             for ver in versoes_por_regiao.get(reg, []):
-                stake_por_regiao_versao[(reg, ver)] = st.number_input(
-                    f"Caixa por Trade ($) - {reg} {ver}",
-                    min_value=0.0,
-                    value=default_stake,
-                    step=10.0,
-                )
+                col_pct, col_reapply = st.columns([2, 1])
+                with col_pct:
+                    pct = st.number_input(
+                        f"Caixa por Trade (%) - {reg} {ver}",
+                        min_value=5.0,
+                        max_value=100.0,
+                        value=default_percent,
+                        step=5.0,
+                        key=f"pct_{reg}_{ver}",
+                    )
+                with col_reapply:
+                    reapply = st.checkbox(
+                        "Capital dinâmico",
+                        value=False,
+                        key=f"reapply_{reg}_{ver}",
+                    )
+                stake_por_regiao_versao[(reg, ver)] = pct / 100.0
+                reapply_por_regiao_versao[(reg, ver)] = reapply
 
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
 
@@ -266,13 +302,14 @@ def main() -> None:
 
     # Ordena cronologicamente para curva e aplica stake por regiao
     df_filtered = df_filtered.sort_values("AnalysisUTC")
-    df_filtered["StakeRV"] = df_filtered.apply(
-        lambda row: stake_por_regiao_versao.get((row["Region"], row["Version"]), 0.0),
-        axis=1,
-    )
-
     # Calculos globais
-    capital, ret_cum = equity_curve(df_filtered["PnL"], capital_inicial, df_filtered["StakeRV"])
+    stake_series, capital, ret_cum = _dynamic_stake_equity(
+        df_filtered,
+        capital_inicial,
+        stake_por_regiao_versao,
+        reapply_por_regiao_versao,
+    )
+    df_filtered["StakeRV"] = stake_series.values
     df_filtered["Capital"] = capital.values
     df_filtered["RetornoAcum"] = ret_cum.values
 
