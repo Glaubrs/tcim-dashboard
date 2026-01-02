@@ -243,6 +243,10 @@ def main() -> None:
             date_source = df_entries["DateParsed"].dropna()
         min_date = date_source.min()
         max_date = date_source.max()
+        if pd.notna(min_date):
+            min_date = min_date.date()
+        if pd.notna(max_date):
+            max_date = max_date.date()
 
         date_range = st.date_input(
             "Periodo",
