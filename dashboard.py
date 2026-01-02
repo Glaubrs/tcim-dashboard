@@ -248,7 +248,6 @@ def main() -> None:
         if pd.notna(max_date):
             max_date = max_date.date()
 
-        st.caption(f"Última data no CSV: {max_date} | Primeira data: {min_date}")
 
         date_range = st.date_input(
             "Periodo",
@@ -417,7 +416,7 @@ diretamente no seu Telegram antes da abertura:<br>
             template="plotly_dark",
         )
         fig.update_layout(hovermode="x unified")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         capital_series = df_filtered["Capital"].reset_index(drop=True)
         capital_with_start = pd.concat([pd.Series([capital_inicial]), capital_series], ignore_index=True)
@@ -482,7 +481,7 @@ diretamente no seu Telegram antes da abertura:<br>
                 "Expectativa (E)": st.column_config.NumberColumn(format="%.4f"),
             },
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     with tab_mensal:
@@ -511,7 +510,7 @@ diretamente no seu Telegram antes da abertura:<br>
                 "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
             },
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     with tab_trades:
