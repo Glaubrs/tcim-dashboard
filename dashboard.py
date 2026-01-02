@@ -248,6 +248,8 @@ def main() -> None:
         if pd.notna(max_date):
             max_date = max_date.date()
 
+        st.caption(f"Última data no CSV: {max_date} | Primeira data: {min_date}")
+
         date_range = st.date_input(
             "Periodo",
             value=(min_date, max_date),
