@@ -238,8 +238,11 @@ def main() -> None:
             )
             versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
 
-        min_date = df_entries["DateParsed"].min()
-        max_date = df_entries["DateParsed"].max()
+        date_source = df["DateParsed"].dropna()
+        if date_source.empty:
+            date_source = df_entries["DateParsed"].dropna()
+        min_date = date_source.min()
+        max_date = date_source.max()
 
         date_range = st.date_input(
             "Periodo",
