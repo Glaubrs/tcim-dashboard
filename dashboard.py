@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import os
-import time
 
 
 
@@ -45,10 +43,15 @@ st.set_page_config(
 # Funções de suporte
 # ------------------------------------------------------
 
+def _csv_signature(csv_path: Path) -> tuple[int, int]:
+    stats = csv_path.stat()
+    return stats.st_mtime_ns, stats.st_size
+
+
 @st.cache_data
-def load_data(csv_path: Path, mtime: float) -> pd.DataFrame:
+def load_data(csv_path: Path, signature: tuple[int, int]) -> pd.DataFrame:
     try:
-        # O argumento 'mtime' força o recarregamento se o arquivo mudou
+        # O argumento 'signature' forca o recarregamento se o arquivo mudou
         df = pd.read_csv(csv_path, sep=";")
         df["DateParsed"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
         df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
@@ -206,13 +209,11 @@ def main() -> None:
             st.error(f"Arquivo nao encontrado: {csv_path}")
             return
 
-# --- ADICIONAR ESTAS LINHAS ---
-        # Obtém o timestamp da última modificação do arquivo
-        file_mtime = os.path.getmtime(csv_path)
-        
-        # Passa o timestamp para a função de carga
-        df = load_data(csv_path, file_mtime)
-        # ------------------------------
+        if st.button("Recarregar CSV"):
+            load_data.clear()
+
+        file_signature = _csv_signature(csv_path)
+        df = load_data(csv_path, file_signature)
        
         if df.empty:
             st.warning("CSV vazio ou invalido.")
