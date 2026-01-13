@@ -482,9 +482,9 @@ diretamente no seu Telegram antes da abertura:<br>
             if pd.notna(start_date_dd) and pd.notna(end_date_dd):
                 dd_period = f" - de {start_date_dd:%d/%m/%Y} ate {end_date_dd:%d/%m/%Y}"
         st.markdown(
-            f"**Drawdown m?ximo:** {_format_percent_br(max_dd_pct * 100, 2)} "
+            f"**Drawdown máximo:** {_format_percent_br(max_dd_pct * 100, 2)} "
             f"({_format_number_br(max_dd_abs, 2)} absoluto) ou "
-            f"{_format_number_br(boxes_lost, 2)} caixas m?dias{dd_period}"
+            f"{_format_number_br(boxes_lost, 2)} caixas médias{dd_period}"
         )
 
     with tab_regiao:
