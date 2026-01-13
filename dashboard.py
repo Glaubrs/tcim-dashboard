@@ -85,7 +85,11 @@ def equity_curve(
     capital_values = []
     capital = initial_capital
     for val, stake in zip(pnl, stake_series):
-        capital += stake * val
+        if capital <= 0:
+            capital = 0.0
+            capital_values.append(capital)
+            continue
+        capital = max(0.0, capital + stake * val)
         capital_values.append(capital)
     capital_series = pd.Series(capital_values, index=pnl.index)
     growth = (capital_series / initial_capital) - 1.0
@@ -102,11 +106,16 @@ def _dynamic_stake_equity(
     stake_values = []
     capital_values = []
     for _, row in df_filtered.iterrows():
+        if capital <= 0:
+            capital = 0.0
+            stake_values.append(0.0)
+            capital_values.append(capital)
+            continue
         pct = stake_pct_map.get((row["Region"], row["Version"]), 0.0)
         base = capital if reapply_map.get((row["Region"], row["Version"]), False) else initial_capital
         stake = base * pct
         pnl_val = row["PnL"] if pd.notna(row["PnL"]) else 0.0
-        capital += stake * pnl_val
+        capital = max(0.0, capital + stake * pnl_val)
         stake_values.append(stake)
         capital_values.append(capital)
     stake_series = pd.Series(stake_values, index=df_filtered.index)
