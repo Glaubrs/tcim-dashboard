@@ -187,6 +187,27 @@ def _available_versions_for_region(regiao: str, df_entries: pd.DataFrame) -> lis
     return combined
 
 
+def _format_number_br(value: float, decimals: int = 2) -> str:
+    if value is None or pd.isna(value):
+        return f"{0:.{decimals}f}".replace(".", ",")
+    formatted = f"{value:,.{decimals}f}"
+    return formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _format_currency_br(value: float, decimals: int = 2) -> str:
+    return f"${_format_number_br(value, decimals)}"
+
+
+def _format_percent_br(value: float, decimals: int = 2, show_sign: bool = False) -> str:
+    sign = ""
+    if show_sign:
+        if value > 0:
+            sign = "+"
+        elif value < 0:
+            sign = "-"
+    return f"{sign}{_format_number_br(abs(value), decimals)}%"
+
+
 # ------------------------------------------------------
 # Interface principal
 # ------------------------------------------------------
@@ -359,10 +380,14 @@ def main() -> None:
         final_capital = df_filtered["Capital"].iloc[-1]
         roi_total = ((final_capital - capital_inicial) / capital_inicial) * 100
 
-        kpi1.metric("Capital Final", f"${final_capital:,.2f}", f"{roi_total:+.2f}%")
+        kpi1.metric(
+            "Capital Final",
+            _format_currency_br(final_capital),
+            _format_percent_br(roi_total, 2, show_sign=True),
+        )
         kpi2.metric("Total Trades", metrics_global["entradas"])
-        kpi3.metric("Win Rate Global", f"{metrics_global['taxa']*100:.2f}%")
-        kpi4.metric("Fator de Lucro", f"{metrics_global['fator_lucro']:.2f}")
+        kpi3.metric("Win Rate Global", _format_percent_br(metrics_global["taxa"] * 100, 2))
+        kpi4.metric("Fator de Lucro", _format_number_br(metrics_global["fator_lucro"], 2))
 
     st.divider()
 
@@ -425,7 +450,12 @@ diretamente no seu Telegram antes da abertura:<br>
             markers=True,
             template="plotly_dark",
         )
-        fig.update_layout(hovermode="x unified")
+        fig.update_layout(
+            hovermode="x unified",
+            separators=",.",
+            yaxis_tickformat=",.2f",
+        )
+        fig.update_traces(hovertemplate="%{x}<br>%{y:,.2f}<extra></extra>")
         st.plotly_chart(fig, width="stretch")
 
         capital_series = df_filtered["Capital"].reset_index(drop=True)
@@ -452,7 +482,9 @@ diretamente no seu Telegram antes da abertura:<br>
             if pd.notna(start_date_dd) and pd.notna(end_date_dd):
                 dd_period = f" - de {start_date_dd:%d/%m/%Y} ate {end_date_dd:%d/%m/%Y}"
         st.markdown(
-            f"**Drawdown máximo:** {max_dd_pct*100:.2f}% ({max_dd_abs:,.2f} absoluto) ou {boxes_lost:.2f} caixas médias{dd_period}"
+            f"**Drawdown m?ximo:** {_format_percent_br(max_dd_pct * 100, 2)} "
+            f"({_format_number_br(max_dd_abs, 2)} absoluto) ou "
+            f"{_format_number_br(boxes_lost, 2)} caixas m?dias{dd_period}"
         )
 
     with tab_regiao:
