@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Dashboard interativo do backtest TCIM - Versão Otimizada (Visual Pro)
+Dashboard interativo do backtest TCIM - Versão Otimizada (UI Ajustada)
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------
-# CSS Personalizado (Visual Pro)
+# CSS Personalizado (Visual Pro + Ajustes Sidebar)
 # ------------------------------------------------------
 st.markdown("""
 <style>
@@ -52,11 +52,20 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     div[data-testid="stMetric"] label {
-        color: #b0b0b0; /* Cor do título da métrica */
+        color: #b0b0b0;
     }
-    /* Ajuste para centralizar logo na sidebar se necessário */
-    [data-testid="stSidebar"] {
-        background-color: #111;
+    
+    /* Ajuste de contraste para inputs na sidebar */
+    [data-testid="stSidebar"] input[type="number"] {
+        background-color: #2b2b2b; /* Fundo mais claro que o preto total */
+        border: 1px solid #444;
+        color: #ffffff;
+        border-radius: 4px;
+    }
+    
+    /* Melhorar legibilidade dos labels na sidebar */
+    [data-testid="stSidebar"] label {
+        font-size: 0.9rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -113,7 +122,6 @@ def _dynamic_stake_equity(
             continue
         
         pct = stake_pct_map.get((row["Region"], row["Version"]), 0.0)
-        # Se reapply for True, usa o capital atual (juros compostos), senão usa o inicial (juros simples)
         base = capital if reapply_map.get((row["Region"], row["Version"]), False) else initial_capital
         stake = base * pct
         
@@ -212,12 +220,49 @@ def _format_percent_br(value: float, decimals: int = 2, show_sign: bool = False)
             sign = "-"
     return f"{sign}{_format_number_br(abs(value), decimals)}%"
 
-# Função de estilo para colorir PnL no DataFrame
 def highlight_pnl_col(val):
     if pd.isna(val):
         return ''
     color = '#ff4b4b' if val < 0 else '#2dc937'
     return f'color: {color}'
+
+# ------------------------------------------------------
+# Funções Auxiliares de Drawdown (Datas)
+# ------------------------------------------------------
+def _calculate_dd_window(series_values: pd.Series, date_series: pd.Series) -> tuple[int, int, pd.Timestamp, pd.Timestamp]:
+    """Retorna índice pico, índice vale, data pico, data vale"""
+    if series_values.empty:
+        return 0, 0, pd.NaT, pd.NaT
+    
+    # Índice do ponto mais baixo (vale)
+    trough_idx = int(series_values.idxmin())
+    
+    # Serie até o ponto do vale para achar o pico anterior
+    # Importante: estamos assumindo que series_values já é o DD ou Equity dependendo do contexto.
+    # Mas para achar datas corretas, precisamos analisar a curva de DD.
+    
+    # Se series_values for o Drawdown (ex: 0, -0.1, -0.2...), o pico anterior é o último 0 antes do vale.
+    # Mas aqui vamos assumir que passamos a série de DD já calculada.
+    
+    # Simplificação: O DD máximo ocorre no 'trough_idx'. 
+    # O início do DD é o último ponto onde DD era 0 antes de trough_idx.
+    
+    # Fatia até o vale
+    slice_dd = series_values.iloc[:trough_idx+1]
+    
+    # Início do DD é onde o DD era 0 (ou quase 0) mais recentemente
+    # Se series_values é DD puro (ex: 0.0, -0.05), procuramos o max (que é 0)
+    peaks = slice_dd[slice_dd == 0]
+    if peaks.empty:
+        # Se não tem zero (começou já caindo), pega o primeiro
+        peak_idx = 0
+    else:
+        peak_idx = int(peaks.index[-1])
+        
+    start_date = date_series.iloc[peak_idx]
+    end_date = date_series.iloc[trough_idx]
+    
+    return peak_idx, trough_idx, start_date, end_date
 
 
 # ------------------------------------------------------
@@ -275,7 +320,6 @@ def main() -> None:
             default_version = _default_version_for_region(reg) or "Todas"
             opcoes = ["Todas"] + versoes
             
-            # Pequena lógica para não poluir se tiver só uma versão
             if len(opcoes) > 2:
                 selecao = st.selectbox(
                     f"Versão ({reg})",
@@ -309,38 +353,44 @@ def main() -> None:
         else:
             start_date, end_date = min_date, max_date
 
-        st.subheader("Gestão de Risco")
-        capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        
-        # --- MELHORIA DE UX: Expander para configurações detalhadas ---
+        # --- GESTÃO DE RISCO (Expander Ajustado) ---
         stake_por_regiao_versao: dict[tuple[str, str], float] = {}
         reapply_por_regiao_versao: dict[tuple[str, str], bool] = {}
         default_percent = 10.0
 
-        with st.expander("⚙️ Configurar Alocação (Caixa %)"):
-            st.caption("Defina quanto do capital usar por trade.")
+        with st.expander("⚙️ Gestão de Risco", expanded=False):
+            capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
+            st.divider()
+            
+            st.caption("Alocação por Trade (% do Capital)")
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
-                    c1, c2 = st.columns([2, 1])
-                    with c1:
+                    # Layout ajustado: Input menor (usando colunas vazias para "espremer")
+                    # c_in: input, c_chk: checkbox, c_buff: espaço vazio
+                    c_in, c_chk, c_buff = st.columns([1.2, 0.8, 0.5]) 
+                    with c_in:
                         pct = st.number_input(
-                            f"% Caixa ({ver})",
+                            f"% ({ver})",
                             min_value=1.0, max_value=100.0, value=default_percent, step=1.0,
-                            key=f"pct_{reg}_{ver}"
+                            key=f"pct_{reg}_{ver}",
+                            label_visibility="visible" 
                         )
-                    with c2:
-                        reapply = st.checkbox("Comp.", value=False, key=f"re_{reg}_{ver}", help="Juros Compostos")
+                    with c_chk:
+                        # Espaço vertical para alinhar checkbox com input
+                        st.write("") 
+                        st.write("")
+                        reapply = st.checkbox("Juros Comp.", value=False, key=f"re_{reg}_{ver}")
                     
                     stake_por_regiao_versao[(reg, ver)] = pct / 100.0
                     reapply_por_regiao_versao[(reg, ver)] = reapply
                 st.divider()
 
         n_piores = st.slider("Top Loss (qtd)", 3, 50, 10)
-        st.caption(f"Registros processados: {len(df)}")
+        st.caption(f"Registros: {len(df)}")
 
 
-    # --- FILTRAGEM DE DADOS ---
+    # --- FILTRAGEM ---
     mask = pd.Series(True, index=df_entries.index)
     if regioes_sel:
         mask &= df_entries["Region"].isin(regioes_sel)
@@ -357,11 +407,9 @@ def main() -> None:
     df_filtered = df_entries[mask].copy()
     df_filtered["Version"] = df_filtered["Version"].astype(str).replace("nan", "")
     df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
-
-    # Ordenação Cronológica
     df_filtered = df_filtered.sort_values("AnalysisUTC")
     
-    # Cálculos de Capital e Equity
+    # Cálculo
     stake_series, capital, ret_cum = _dynamic_stake_equity(
         df_filtered,
         capital_inicial,
@@ -371,6 +419,23 @@ def main() -> None:
     df_filtered["StakeRV"] = stake_series.values
     df_filtered["Capital"] = capital.values
     df_filtered["RetornoAcum"] = ret_cum.values
+
+    # Reset de índice para cálculos de DD com datas
+    df_filtered = df_filtered.reset_index(drop=True)
+    date_series_reset = df_filtered["AnalysisUTC"]
+    
+    # Cálculos Globais de DD para exibição
+    pico_acumulado = df_filtered["Capital"].cummax()
+    dd_pct_series = (df_filtered["Capital"] - pico_acumulado) / pico_acumulado
+    dd_abs_series = df_filtered["Capital"] - pico_acumulado
+    
+    # Encontrar as datas dos picos/vales
+    _, _, start_dd_pct, end_dd_pct = _calculate_dd_window(dd_pct_series, date_series_reset)
+    _, _, start_dd_abs, end_dd_abs = _calculate_dd_window(dd_abs_series, date_series_reset)
+    
+    max_dd_pct = dd_pct_series.min() if not dd_pct_series.empty else 0.0
+    max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
+
 
     # --- DASHBOARD HEADER ---
     st.title("Relatório de Performance TCIM")
@@ -382,7 +447,7 @@ def main() -> None:
         st.warning("⚠️ Nenhuma entrada encontrada com os filtros selecionados.")
         return
 
-    # --- KPIS GLOBAIS ---
+    # --- KPIS ---
     df_stats_global = df_filtered[df_filtered["TCIM_Vies"].notna() & (df_filtered["TCIM_Vies"] != "FORA")].copy()
 
     if not df_stats_global.empty:
@@ -395,22 +460,17 @@ def main() -> None:
         metrics_global = _region_metrics(df_stats_global)
 
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-
         final_capital = df_filtered["Capital"].iloc[-1]
         roi_total = ((final_capital - capital_inicial) / capital_inicial) * 100
 
-        kpi1.metric(
-            "Capital Final",
-            _format_currency_br(final_capital),
-            _format_percent_br(roi_total, 2, show_sign=True),
-        )
+        kpi1.metric("Capital Final", _format_currency_br(final_capital), _format_percent_br(roi_total, 2, show_sign=True))
         kpi2.metric("Total Trades", metrics_global["entradas"])
         kpi3.metric("Win Rate Global", _format_percent_br(metrics_global["taxa"] * 100, 2))
         kpi4.metric("Fator de Lucro", _format_number_br(metrics_global["fator_lucro"], 2))
 
     st.divider()
 
-    # --- ABAS DE ANÁLISE ---
+    # --- TABS ---
     tab_metodo, tab_curva, tab_regiao, tab_mensal, tab_trades = st.tabs(
         ["📘 Método", "📈 Curva & Drawdown", "🌍 Análise Regional", "📅 Análise Mensal", "💰 Trades & Dados"]
     )
@@ -423,108 +483,83 @@ def main() -> None:
                 """
                 O **TCIM** (Tendência, Contexto, Impulso e Mitigação) é um algoritmo quantitativo que gera viés probabilístico 
                 cerca de 30 minutos antes da abertura das sessões globais.
-
-                **Arquitetura de Decisão:**
-                - 📈 **Tendência:** Análise de EMAs 20/50 e inclinação (slopes).
-                - 🌐 **Contexto:** Preço relativo a VWAP e volatilidade via ATR.
-                - 🚀 **Impulso:** Força direcional medida pelo ADX.
-                - 🛡️ **Mitigação:** Filtros de exaustão, pavios longos e spikes.
                 """
             )
         with c_tele:
-            st.info(
-                """
-                **Horários de Disparo:**
-                - 🇺🇸 **América:** 10:16
-                - 🇯🇵 **Ásia:** 20:31
-                - 🇪🇺 **Europa:** 03:46
-                """
-            )
-            telegram_path = Path("telegram.png")
-            if telegram_path.exists():
-                img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
-                st.markdown(
-                    f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank">'
-                    f'<img src="data:image/png;base64,{img_b64}" width="24" style="vertical-align:middle;margin-right:8px;">'
-                    f'<b>Entrar no Canal TCIM</b></a>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown('[🔗 Canal Telegram TCIM](https://t.me/+OB9T7OXQ2o1iYmJh)')
+            st.info("Telegram Channel info placeholder")
 
     with tab_curva:
         st.subheader("Evolução do Patrimônio e Risco")
         
-        # Preparação dos dados para o plot
-        capital_series = df_filtered["Capital"].reset_index(drop=True)
-        # Recriar série com ponto de partida para o gráfico começar do zero (visual melhor)
-        # Mas mantendo o eixo X alinhado com AnalysisUTC pode ser tricky, vamos usar o df direto.
-        
-        # Calculo de Drawdown para o gráfico
-        pico_acumulado = df_filtered["Capital"].cummax()
-        dd_pct_series = (df_filtered["Capital"] - pico_acumulado) / pico_acumulado
-        
-        # Criação do Subplot (2 linhas: Capital e Drawdown)
-        fig = make_subplots(
-            rows=2, cols=1, 
-            shared_xaxes=True, 
-            vertical_spacing=0.05,
-            row_heights=[0.70, 0.30],
-            subplot_titles=("Curva de Capital", "Drawdown Subaquático (%)")
-        )
-
-        # Trace 1: Capital
-        fig.add_trace(
-            go.Scatter(
-                x=df_filtered["AnalysisUTC"], 
-                y=df_filtered["Capital"],
-                mode='lines',
-                name='Capital',
-                line=dict(color='#00CC96', width=2),
-                fill='tozeroy',
-                fillcolor='rgba(0, 204, 150, 0.1)'
-            ),
-            row=1, col=1
-        )
-
-        # Trace 2: Drawdown
-        fig.add_trace(
-            go.Scatter(
-                x=df_filtered["AnalysisUTC"], 
-                y=dd_pct_series,
-                mode='lines',
-                name='Drawdown',
-                line=dict(color='#EF553B', width=1),
-                fill='tozeroy',
-                fillcolor='rgba(239, 85, 59, 0.2)'
-            ),
-            row=2, col=1
-        )
-
-        # Layout Dark Moderno
-        fig.update_layout(
-            template="plotly_dark",
-            hovermode="x unified",
-            margin=dict(l=40, r=40, t=40, b=40),
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
-            height=600
+        # Opção de Visualização
+        tipo_grafico = st.radio(
+            "Estilo do Gráfico:",
+            ["Clássico (Com Marcações)", "Analítico (Subplots)"],
+            horizontal=True
         )
         
-        # Formatação dos eixos
-        fig.update_yaxes(tickformat=",.0f", title="Saldo ($)", row=1, col=1)
-        fig.update_yaxes(tickformat=".1%", title="Queda (%)", row=2, col=1)
-
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Cálculo de métricas de DD
-        max_dd_pct = dd_pct_series.min() if not dd_pct_series.empty else 0.0
-        # Drawdown absoluto
-        dd_abs_series = df_filtered["Capital"] - pico_acumulado
-        max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
-        
+        # Exibição dos Dados de DD (Texto)
         c_dd1, c_dd2 = st.columns(2)
-        c_dd1.metric("Drawdown Máximo (%)", _format_percent_br(max_dd_pct * 100, 2))
-        c_dd2.metric("Drawdown Máximo ($)", _format_number_br(max_dd_abs, 2))
+        
+        str_periodo_pct = ""
+        if pd.notna(start_dd_pct) and pd.notna(end_dd_pct):
+            str_periodo_pct = f"({start_dd_pct.strftime('%d/%m')} a {end_dd_pct.strftime('%d/%m')})"
+            
+        str_periodo_abs = ""
+        if pd.notna(start_dd_abs) and pd.notna(end_dd_abs):
+            str_periodo_abs = f"({start_dd_abs.strftime('%d/%m')} a {end_dd_abs.strftime('%d/%m')})"
+
+        c_dd1.metric("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2))
+        c_dd1.caption(f"Período: {str_periodo_pct}")
+        
+        c_dd2.metric("Max Drawdown ($)", _format_number_br(max_dd_abs, 2))
+        c_dd2.caption(f"Período: {str_periodo_abs}")
+        
+        st.markdown("---")
+
+        if tipo_grafico == "Analítico (Subplots)":
+            # --- MODELO NOVO ---
+            fig = make_subplots(
+                rows=2, cols=1, 
+                shared_xaxes=True, 
+                vertical_spacing=0.05,
+                row_heights=[0.70, 0.30],
+                subplot_titles=("Curva de Capital", "Drawdown Subaquático (%)")
+            )
+            fig.add_trace(
+                go.Scatter(x=df_filtered["AnalysisUTC"], y=df_filtered["Capital"],
+                    mode='lines', name='Capital', line=dict(color='#00CC96', width=2),
+                    fill='tozeroy', fillcolor='rgba(0, 204, 150, 0.1)'),
+                row=1, col=1
+            )
+            fig.add_trace(
+                go.Scatter(x=df_filtered["AnalysisUTC"], y=dd_pct_series,
+                    mode='lines', name='Drawdown', line=dict(color='#EF553B', width=1),
+                    fill='tozeroy', fillcolor='rgba(239, 85, 59, 0.2)'),
+                row=2, col=1
+            )
+            fig.update_layout(template="plotly_dark", hovermode="x unified", height=600,
+                              margin=dict(l=40, r=40, t=40, b=40), legend=dict(orientation="h", y=1.1))
+            fig.update_yaxes(tickformat=",.0f", title="Saldo ($)", row=1, col=1)
+            fig.update_yaxes(tickformat=".1%", title="Queda (%)", row=2, col=1)
+            st.plotly_chart(fig, use_container_width=True)
+
+        else:
+            # --- MODELO CLÁSSICO ---
+            fig = px.line(
+                df_filtered, x="AnalysisUTC", y="Capital", color="Region",
+                title="Crescimento do Capital", markers=True, template="plotly_dark"
+            )
+            fig.update_layout(hovermode="x unified", height=500)
+            
+            # Adicionar retângulos de DD
+            if pd.notna(start_dd_pct) and pd.notna(end_dd_pct):
+                fig.add_vrect(
+                    x0=start_dd_pct, x1=end_dd_pct,
+                    fillcolor="rgba(255, 99, 71, 0.2)", line_width=0,
+                    annotation_text="DD Máx", annotation_position="top left"
+                )
+            st.plotly_chart(fig, use_container_width=True)
 
 
     with tab_regiao:
@@ -544,18 +579,11 @@ def main() -> None:
                     "Expectativa (E)": stats["E"],
                 }
             )
-
         df_region_view = pd.DataFrame(region_stats_rows)
-
         st.dataframe(
             df_region_view,
             column_config={
-                "Taxa Acerto": st.column_config.ProgressColumn(
-                    "Taxa de Acerto",
-                    format="%.2f%%",
-                    min_value=0,
-                    max_value=1,
-                ),
+                "Taxa Acerto": st.column_config.ProgressColumn("Taxa de Acerto", format="%.2f%%", min_value=0, max_value=1),
                 "Ganho Médio": st.column_config.NumberColumn(format="$%.2f"),
                 "Perda Média": st.column_config.NumberColumn(format="$%.2f"),
                 "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
@@ -572,59 +600,28 @@ def main() -> None:
         for (reg, mes), df_group in df_stats_global.groupby(["Region", "Mes"]):
             stats = _region_metrics(df_group)
             monthly_rows.append(
-                {
-                    "Região": reg,
-                    "Mes": mes,
-                    "Trades": stats["entradas"],
-                    "Taxa Acerto": stats["taxa"],
-                    "Payoff (R:R)": stats["payoff_rr"],
-                    "Fator Lucro": stats["fator_lucro"],
-                }
+                {"Região": reg, "Mes": mes, "Trades": stats["entradas"],
+                 "Taxa Acerto": stats["taxa"], "Payoff (R:R)": stats["payoff_rr"], "Fator Lucro": stats["fator_lucro"]}
             )
-
-        df_monthly_view = pd.DataFrame(monthly_rows).sort_values(["Região", "Mes"])
-        
-        # Pivotar para melhor visualização (Linhas = Meses, Colunas = Regiões) se desejar
-        # Mas vamos manter o formato lista por enquanto
-        st.dataframe(
-            df_monthly_view,
-            column_config={
-                "Taxa Acerto": st.column_config.NumberColumn(format="%.2f%%"),
-                "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
-                "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
-            },
-            hide_index=True,
-            use_container_width=True,
-        )
+        st.dataframe(pd.DataFrame(monthly_rows).sort_values(["Região", "Mes"]), hide_index=True, use_container_width=True)
 
     with tab_trades:
         col_worst, col_raw = st.columns([1, 2])
-
         with col_worst:
             st.markdown(f"### 🔻 Top {n_piores} Maiores Perdas")
             perdas = df_filtered[df_filtered["PnL"] < 0].nsmallest(n_piores, "PnL")
-            
-            # Aplicação de cor
             st.dataframe(
                 perdas[["Date", "Region", "Symbol", "PnL"]].style.format({"PnL": "${:.2f}"}).map(highlight_pnl_col, subset=["PnL"]),
-                use_container_width=True,
-                hide_index=True
+                use_container_width=True, hide_index=True
             )
-
         with col_raw:
             st.markdown("### 📋 Diário de Trades")
-            # Exibir PnL colorido e Score formatado
-            cols_show = ["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]
-            
             st.dataframe(
-                df_filtered[cols_show].style
-                    .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
-                    .map(highlight_pnl_col, subset=["PnL"]),
-                height=500,
-                use_container_width=True,
-                hide_index=True
+                df_filtered[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
+                .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
+                .map(highlight_pnl_col, subset=["PnL"]),
+                height=500, use_container_width=True, hide_index=True
             )
-
 
 if __name__ == "__main__":
     main()
