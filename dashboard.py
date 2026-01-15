@@ -252,6 +252,35 @@ def _calculate_dd_window(series_values: pd.Series, date_series: pd.Series) -> tu
     return peak_idx, trough_idx, start_date, end_date
 
 
+def _calculate_max_streak(
+    pnl_series: pd.Series,
+    date_series: pd.Series,
+    positive: bool,
+) -> tuple[int, pd.Timestamp, pd.Timestamp]:
+    if pnl_series.empty:
+        return 0, pd.NaT, pd.NaT
+    is_match = pnl_series > 0 if positive else pnl_series < 0
+    max_len = 0
+    cur_len = 0
+    best_start = 0
+    best_end = 0
+    start_idx = 0
+    for idx, hit in enumerate(is_match):
+        if hit:
+            if cur_len == 0:
+                start_idx = idx
+            cur_len += 1
+            if cur_len > max_len:
+                max_len = cur_len
+                best_start = start_idx
+                best_end = idx
+        else:
+            cur_len = 0
+    if max_len == 0:
+        return 0, pd.NaT, pd.NaT
+    return max_len, date_series.iloc[best_start], date_series.iloc[best_end]
+
+
 # ------------------------------------------------------
 # Interface principal
 # ------------------------------------------------------
@@ -434,6 +463,11 @@ def main() -> None:
     max_dd_pct = dd_pct_series.min() if not dd_pct_series.empty else 0.0
     max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
 
+    pnl_series = df_filtered["PnL"].reset_index(drop=True)
+    streak_date_series = df_filtered["DateParsed"].reset_index(drop=True)
+    max_gain_len, start_gain, end_gain = _calculate_max_streak(pnl_series, streak_date_series, True)
+    max_loss_len, start_loss, end_loss = _calculate_max_streak(pnl_series, streak_date_series, False)
+
 
     # --- DASHBOARD HEADER ---
     st.title("Relatório de Performance TCIM")
@@ -498,22 +532,27 @@ def main() -> None:
         )
         
         # Exibição dos Dados de DD (Texto)
-        c_dd1, c_dd2 = st.columns(2)
-        
-        str_periodo_pct = ""
-        if pd.notna(start_dd_pct) and pd.notna(end_dd_pct):
-            str_periodo_pct = f"({start_dd_pct.strftime('%d/%m')} a {end_dd_pct.strftime('%d/%m')})"
-            
-        str_periodo_abs = ""
-        if pd.notna(start_dd_abs) and pd.notna(end_dd_abs):
-            str_periodo_abs = f"({start_dd_abs.strftime('%d/%m')} a {end_dd_abs.strftime('%d/%m')})"
+        # Exibicao dos Dados de DD (Texto)
+        def _format_range(start_date: pd.Timestamp, end_date: pd.Timestamp) -> str:
+            if pd.notna(start_date) and pd.notna(end_date):
+                return f"{start_date:%d/%m/%Y} a {end_date:%d/%m/%Y}"
+            return "Sem dados"
 
+        str_periodo_pct = _format_range(start_dd_pct, end_dd_pct)
+        str_periodo_abs = _format_range(start_dd_abs, end_dd_abs)
+        str_periodo_gain = _format_range(start_gain, end_gain)
+        str_periodo_loss = _format_range(start_loss, end_loss)
+
+        c_dd1, c_dd2, c_gain, c_loss = st.columns([1.2, 1.2, 1, 1])
         c_dd1.metric("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2))
-        c_dd1.caption(f"Período: {str_periodo_pct}")
-        
+        c_dd1.caption(str_periodo_pct)
         c_dd2.metric("Max Drawdown ($)", _format_number_br(max_dd_abs, 2))
-        c_dd2.caption(f"Período: {str_periodo_abs}")
-        
+        c_dd2.caption(str_periodo_abs)
+        c_gain.metric("Maior sequencia de gains", f"{max_gain_len}")
+        c_gain.caption(str_periodo_gain)
+        c_loss.metric("Maior sequencia de loss", f"{max_loss_len}")
+        c_loss.caption(str_periodo_loss)
+
         st.markdown("---")
 
         if tipo_grafico == "Analítico (Subplots)":
