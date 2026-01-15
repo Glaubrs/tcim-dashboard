@@ -523,7 +523,7 @@ def main() -> None:
                 shared_xaxes=True, 
                 vertical_spacing=0.05,
                 row_heights=[0.70, 0.30],
-                subplot_titles=("Curva de Capital", "Drawdown Subaquático (%)")
+                subplot_titles=("Curva de Capital", "Underwater Drawdown Chart (%)")
             )
             fig.add_trace(
                 go.Scatter(x=df_filtered["AnalysisUTC"], y=df_filtered["Capital"],
