@@ -562,6 +562,12 @@ def main() -> None:
                 font-weight: 700;
                 margin-bottom: 6px;
             }
+            .metric-value.pos {
+                color: #2dc937;
+            }
+            .metric-value.neg {
+                color: #ff4b4b;
+            }
             .metric-subtitle {
                 font-size: 12px;
                 opacity: 0.7;
@@ -571,12 +577,12 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        def _render_card(title: str, value: str, subtitle: str) -> None:
+        def _render_card(title: str, value: str, subtitle: str, value_class: str = "") -> None:
             st.markdown(
                 f"""
                 <div class="metric-card">
                     <div class="metric-title">{title}</div>
-                    <div class="metric-value">{value}</div>
+                    <div class="metric-value {value_class}">{value}</div>
                     <div class="metric-subtitle">{subtitle}</div>
                 </div>
                 """,
@@ -585,13 +591,13 @@ def main() -> None:
 
         c_dd1, c_dd2, c_gain, c_loss = st.columns([1.2, 1.2, 1, 1])
         with c_dd1:
-            _render_card("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2), str_periodo_pct)
+            _render_card("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2), str_periodo_pct, "neg")
         with c_dd2:
-            _render_card("Max Drawdown ($)", _format_number_br(max_dd_abs, 2), str_periodo_abs)
+            _render_card("Max Drawdown ($)", _format_number_br(max_dd_abs, 2), str_periodo_abs, "neg")
         with c_gain:
-            _render_card("Maior sequencia de gains", f"{max_gain_len}", str_periodo_gain)
+            _render_card("Maior sequencia de gains", f"{max_gain_len}", str_periodo_gain, "pos")
         with c_loss:
-            _render_card("Maior sequencia de loss", f"{max_loss_len}", str_periodo_loss)
+            _render_card("Maior sequencia de loss", f"{max_loss_len}", str_periodo_loss, "neg")
 
         st.markdown("---")
 
