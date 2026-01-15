@@ -380,9 +380,12 @@ def main() -> None:
 
         with st.expander("⚙️ Gestão de Risco", expanded=False):
             capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-            st.divider()
-            
-            st.caption("Alocação por Trade (% do Capital)")
+
+            def _apply_global_pct() -> None:
+                for reg in regioes_disponiveis:
+                    for ver in versoes_por_regiao.get(reg, []):
+                        st.session_state[f"pct_{reg}_{ver}"] = st.session_state.get("pct_global", default_percent)
+
             c_all_pct, c_all_btn = st.columns([2, 1])
             with c_all_pct:
                 pct_global = st.number_input(
@@ -396,11 +399,10 @@ def main() -> None:
             with c_all_btn:
                 st.write("")
                 st.write("")
-                aplicar_todas = st.button("Aplicar a todas")
-            if aplicar_todas:
-                for reg in regioes_disponiveis:
-                    for ver in versoes_por_regiao.get(reg, []):
-                        st.session_state[f"pct_{reg}_{ver}"] = pct_global
+                st.button("Aplicar a todas", on_click=_apply_global_pct)
+
+            st.divider()
+            st.caption("Aloca??o por Trade (% do Capital)")
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
@@ -410,10 +412,12 @@ def main() -> None:
                     c_in, c_chk = st.columns([2.4, 1.6])
                     
                     with c_in:
+                        pct_key = f"pct_{reg}_{ver}"
+                        pct_value = st.session_state.get(pct_key, default_percent)
                         pct = st.number_input(
                             f"% ({ver})",
-                            min_value=1.0, max_value=100.0, value=default_percent, step=5.0,
-                            key=f"pct_{reg}_{ver}",
+                            min_value=1.0, max_value=100.0, value=pct_value, step=5.0,
+                            key=pct_key,
                             label_visibility="visible" 
                         )
                     with c_chk:
@@ -436,20 +440,22 @@ def main() -> None:
 
 
     # --- FILTRAGEM ---
-    mask = pd.Series(True, index=df_entries.index)
+    df_base = df.copy()
+    mask = pd.Series(True, index=df_base.index)
     if regioes_sel:
-        mask &= df_entries["Region"].isin(regioes_sel)
+        mask &= df_base["Region"].isin(regioes_sel)
     
-    version_series = df_entries["Version"].astype(str)
-    version_series = version_series.where(df_entries["Version"].notna(), "")
+    version_series = df_base["Version"].astype(str)
+    version_series = version_series.where(df_base["Version"].notna(), "")
     
     for reg, versao in versao_sel_por_regiao.items():
         if versao:
-            mask &= ~((df_entries["Region"] == reg) & (version_series != versao))
+            mask &= ~((df_base["Region"] == reg) & (version_series != versao))
     
-    mask &= df_entries["DateParsed"].between(pd.to_datetime(start_date), pd.to_datetime(end_date))
+    mask &= df_base["DateParsed"].between(pd.to_datetime(start_date), pd.to_datetime(end_date))
 
-    df_filtered = df_entries[mask].copy()
+    df_filtered_all = df_base[mask].copy()
+    df_filtered = df_entries[mask.reindex(df_entries.index, fill_value=False)].copy()
     df_filtered["Version"] = df_filtered["Version"].astype(str).replace("nan", "")
     df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
     df_filtered = df_filtered.sort_values("AnalysisUTC")
@@ -730,7 +736,7 @@ def main() -> None:
         with col_raw:
             st.markdown("### 📋 Diário de Trades")
             st.dataframe(
-                df_filtered[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
+                df_filtered_all[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
                 .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
                 .map(highlight_pnl_col, subset=["PnL"]),
                 height=500, use_container_width=True, hide_index=True
