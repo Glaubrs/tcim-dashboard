@@ -543,15 +543,55 @@ def main() -> None:
         str_periodo_gain = _format_range(start_gain, end_gain)
         str_periodo_loss = _format_range(start_loss, end_loss)
 
+        st.markdown(
+            """
+            <style>
+            .metric-card {
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 10px;
+                padding: 12px 10px;
+                text-align: center;
+            }
+            .metric-title {
+                font-size: 13px;
+                opacity: 0.8;
+                margin-bottom: 6px;
+            }
+            .metric-value {
+                font-size: 24px;
+                font-weight: 700;
+                margin-bottom: 6px;
+            }
+            .metric-subtitle {
+                font-size: 12px;
+                opacity: 0.7;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        def _render_card(title: str, value: str, subtitle: str) -> None:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">{title}</div>
+                    <div class="metric-value">{value}</div>
+                    <div class="metric-subtitle">{subtitle}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         c_dd1, c_dd2, c_gain, c_loss = st.columns([1.2, 1.2, 1, 1])
-        c_dd1.metric("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2))
-        c_dd1.caption(str_periodo_pct)
-        c_dd2.metric("Max Drawdown ($)", _format_number_br(max_dd_abs, 2))
-        c_dd2.caption(str_periodo_abs)
-        c_gain.metric("Maior sequencia de gains", f"{max_gain_len}")
-        c_gain.caption(str_periodo_gain)
-        c_loss.metric("Maior sequencia de loss", f"{max_loss_len}")
-        c_loss.caption(str_periodo_loss)
+        with c_dd1:
+            _render_card("Max Drawdown (%)", _format_percent_br(max_dd_pct * 100, 2), str_periodo_pct)
+        with c_dd2:
+            _render_card("Max Drawdown ($)", _format_number_br(max_dd_abs, 2), str_periodo_abs)
+        with c_gain:
+            _render_card("Maior sequencia de gains", f"{max_gain_len}", str_periodo_gain)
+        with c_loss:
+            _render_card("Maior sequencia de loss", f"{max_loss_len}", str_periodo_loss)
 
         st.markdown("---")
 
