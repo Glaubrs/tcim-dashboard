@@ -320,11 +320,6 @@ def main() -> None:
                 reapply_por_regiao_versao[(reg, ver)] = reapply
 
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
-        dd_markers = st.multiselect(
-            "Marcar DD no grafico",
-            options=["Percentual", "Absoluto"],
-            default=["Percentual"],
-        )
 
         st.info(f"Total de registros brutos: {len(df)}")
 
@@ -461,8 +456,6 @@ diretamente no seu Telegram antes da abertura:<br>
             yaxis_tickformat=",.2f",
         )
         fig.update_traces(hovertemplate="%{x}<br>%{y:,.2f}<extra></extra>")
-        st.plotly_chart(fig, width="stretch")
-
         capital_series = df_filtered["Capital"].reset_index(drop=True)
         capital_with_start = pd.concat([pd.Series([capital_inicial]), capital_series], ignore_index=True)
         date_series = pd.concat(
@@ -508,6 +501,11 @@ diretamente no seu Telegram antes da abertura:<br>
             f"**Drawdown maximo absoluto:** {_format_number_br(max_dd_abs, 2)} ou "
             f"{_format_number_br(boxes_lost, 2)} caixas{dd_abs_period}"
         )
+        dd_markers = st.multiselect(
+            "Marcar DD no grafico",
+            options=["Percentual", "Absoluto"],
+            default=["Percentual"],
+        )
 
         if "Percentual" in dd_markers:
             pct_start_ts = analysis_series.iloc[pct_peak_idx]
@@ -533,6 +531,8 @@ diretamente no seu Telegram antes da abertura:<br>
                     annotation_text="DD abs",
                     annotation_position="top left",
                 )
+
+        st.plotly_chart(fig, width="stretch")
 
     with tab_regiao:
         st.subheader("Performance Detalhada por Região")
