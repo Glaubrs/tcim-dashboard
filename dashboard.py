@@ -1,8 +1,7 @@
-"""
-Dashboard interativo do backtest TCIM.
-"""
 # -*- coding: utf-8 -*-
-
+"""
+Dashboard interativo do backtest TCIM - Versão Otimizada (Visual Pro)
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,14 +11,14 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
-
-
 
 
 FAVICON_PATH = Path("favicon.ico")
 
-# Defaults replicados localmente para evitar depender do config em ambiente GitHub.
+# Defaults replicados localmente
 DEFAULT_BACKTEST_VERSION_BY_REGION = {
     "America": ["1.2.3", "1.0.3"],
     "Asia": ["1.2.1", "1.0.1"],
@@ -31,7 +30,7 @@ DEFAULT_ACTIVE_VERSION_BY_REGION = {
     "Europe": "1.2.2",
 }
 
-# Primeira chamada do Streamlit: configuração da página
+# Configuração da página
 st.set_page_config(
     page_title="TCIM Dashboard",
     page_icon=str(FAVICON_PATH) if FAVICON_PATH.exists() else "TCIM",
@@ -40,18 +39,44 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------
+# CSS Personalizado (Visual Pro)
+# ------------------------------------------------------
+st.markdown("""
+<style>
+    /* Estilo para os cartões de métricas (KPIs) */
+    div[data-testid="stMetric"] {
+        background-color: #1e1e1e;
+        border: 1px solid #333;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    div[data-testid="stMetric"] label {
+        color: #b0b0b0; /* Cor do título da métrica */
+    }
+    /* Ajuste para centralizar logo na sidebar se necessário */
+    [data-testid="stSidebar"] {
+        background-color: #111;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ------------------------------------------------------
 # Funções de suporte
 # ------------------------------------------------------
 
 def _csv_signature(csv_path: Path) -> tuple[int, int]:
-    stats = csv_path.stat()
-    return stats.st_mtime_ns, stats.st_size
+    try:
+        stats = csv_path.stat()
+        return stats.st_mtime_ns, stats.st_size
+    except FileNotFoundError:
+        return 0, 0
 
 
 @st.cache_data
 def load_data(csv_path: Path, signature: tuple[int, int]) -> pd.DataFrame:
     try:
-        # O argumento 'signature' forca o recarregamento se o arquivo mudou
         df = pd.read_csv(csv_path, sep=";")
         df["DateParsed"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
         df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
@@ -63,37 +88,11 @@ def load_data(csv_path: Path, signature: tuple[int, int]) -> pd.DataFrame:
 
 def compute_directional_pnl(df: pd.DataFrame) -> pd.Series:
     pnl = pd.Series(np.nan, index=df.index, dtype="float")
-    # Mantive as strings de comparação sem acento caso o CSV venha sem acento
     buys = df["TCIM_Vies"] == "COMPRA"
     sells = df["TCIM_Vies"] == "VENDA"
     pnl.loc[buys] = pd.to_numeric(df.loc[buys, "Up"], errors="coerce")
     pnl.loc[sells] = pd.to_numeric(df.loc[sells, "Down"], errors="coerce")
     return pnl
-
-
-def equity_curve(
-    pnl: pd.Series,
-    initial_capital: float,
-    stake_per_trade: float | pd.Series,
-) -> Tuple[pd.Series, pd.Series]:
-    pnl = pnl.fillna(0.0)
-    stake_series = (
-        pd.Series(stake_per_trade, index=pnl.index)
-        if isinstance(stake_per_trade, (int, float))
-        else pd.Series(stake_per_trade).reindex(pnl.index).fillna(0.0)
-    )
-    capital_values = []
-    capital = initial_capital
-    for val, stake in zip(pnl, stake_series):
-        if capital <= 0:
-            capital = 0.0
-            capital_values.append(capital)
-            continue
-        capital = max(0.0, capital + stake * val)
-        capital_values.append(capital)
-    capital_series = pd.Series(capital_values, index=pnl.index)
-    growth = (capital_series / initial_capital) - 1.0
-    return capital_series, growth
 
 
 def _dynamic_stake_equity(
@@ -105,19 +104,25 @@ def _dynamic_stake_equity(
     capital = initial_capital
     stake_values = []
     capital_values = []
+    
     for _, row in df_filtered.iterrows():
         if capital <= 0:
             capital = 0.0
             stake_values.append(0.0)
             capital_values.append(capital)
             continue
+        
         pct = stake_pct_map.get((row["Region"], row["Version"]), 0.0)
+        # Se reapply for True, usa o capital atual (juros compostos), senão usa o inicial (juros simples)
         base = capital if reapply_map.get((row["Region"], row["Version"]), False) else initial_capital
         stake = base * pct
+        
         pnl_val = row["PnL"] if pd.notna(row["PnL"]) else 0.0
         capital = max(0.0, capital + stake * pnl_val)
+        
         stake_values.append(stake)
         capital_values.append(capital)
+        
     stake_series = pd.Series(stake_values, index=df_filtered.index)
     capital_series = pd.Series(capital_values, index=df_filtered.index)
     growth = (capital_series / initial_capital) - 1.0
@@ -207,17 +212,22 @@ def _format_percent_br(value: float, decimals: int = 2, show_sign: bool = False)
             sign = "-"
     return f"{sign}{_format_number_br(abs(value), decimals)}%"
 
+# Função de estilo para colorir PnL no DataFrame
+def highlight_pnl_col(val):
+    if pd.isna(val):
+        return ''
+    color = '#ff4b4b' if val < 0 else '#2dc937'
+    return f'color: {color}'
+
 
 # ------------------------------------------------------
 # Interface principal
 # ------------------------------------------------------
 
-
 def main() -> None:
     logo_path = Path("logo.png")
 
-    # Sidebar
-
+    # --- SIDEBAR ---
     with st.sidebar:
         if logo_path.exists():
             logo_b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
@@ -229,46 +239,54 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
         st.divider()
-        st.header("Configuracoes")
+        st.header("Configurações")
 
         default_csv = Path("tcim_backtest_results.csv")
         csv_path_str = st.text_input("Arquivo CSV", value=str(default_csv))
         csv_path = Path(csv_path_str)
 
         if not csv_path.exists():
-            st.error(f"Arquivo nao encontrado: {csv_path}")
+            st.error(f"Arquivo não encontrado: {csv_path}")
             return
 
-        if st.button("Recarregar CSV"):
+        if st.button("🔄 Recarregar Dados"):
             load_data.clear()
 
         file_signature = _csv_signature(csv_path)
         df = load_data(csv_path, file_signature)
        
         if df.empty:
-            st.warning("CSV vazio ou invalido.")
+            st.warning("CSV vazio ou inválido.")
             return
 
         df["PnL"] = compute_directional_pnl(df)
         df_entries = df[df["PnL"].notna()].copy()
 
-        st.subheader("Filtros")
+        st.subheader("Filtros Globais")
         regioes_disponiveis = sorted(df_entries["Region"].dropna().unique())
-        regioes_sel = st.multiselect("Regioes", options=regioes_disponiveis, default=regioes_disponiveis)
+        regioes_sel = st.multiselect("Regiões Ativas", options=regioes_disponiveis, default=regioes_disponiveis)
+        
         versao_sel_por_regiao: dict[str, str | None] = {}
         versoes_por_regiao: dict[str, list[str]] = {}
+        
         for reg in regioes_disponiveis:
             versoes = _available_versions_for_region(reg, df_entries)
             versoes_por_regiao[reg] = versoes
             default_version = _default_version_for_region(reg) or "Todas"
             opcoes = ["Todas"] + versoes
-            selecao = st.selectbox(
-                f"Versao - {reg}",
-                options=opcoes,
-                index=opcoes.index(default_version) if default_version in opcoes else 0,
-            )
-            versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
+            
+            # Pequena lógica para não poluir se tiver só uma versão
+            if len(opcoes) > 2:
+                selecao = st.selectbox(
+                    f"Versão ({reg})",
+                    options=opcoes,
+                    index=opcoes.index(default_version) if default_version in opcoes else 0,
+                )
+                versao_sel_por_regiao[reg] = None if selecao == "Todas" else selecao
+            else:
+                versao_sel_por_regiao[reg] = None
 
+        # Filtro de Data
         date_source = df["DateParsed"].dropna()
         if date_source.empty:
             date_source = df_entries["DateParsed"].dropna()
@@ -279,9 +297,8 @@ def main() -> None:
         if pd.notna(max_date):
             max_date = max_date.date()
 
-
         date_range = st.date_input(
-            "Periodo",
+            "Período de Análise",
             value=(min_date, max_date),
             min_value=min_date,
             max_value=max_date,
@@ -292,56 +309,59 @@ def main() -> None:
         else:
             start_date, end_date = min_date, max_date
 
-        st.subheader("Gestao de Capital")
+        st.subheader("Gestão de Risco")
         capital_inicial = st.number_input("Capital Inicial ($)", min_value=100.0, value=1000.0, step=100.0)
-        st.caption("Informe o percentual de caixa por trade para cada regiao/versao")
+        
+        # --- MELHORIA DE UX: Expander para configurações detalhadas ---
         stake_por_regiao_versao: dict[tuple[str, str], float] = {}
         reapply_por_regiao_versao: dict[tuple[str, str], bool] = {}
         default_percent = 10.0
-        for reg in regioes_disponiveis:
-            for ver in versoes_por_regiao.get(reg, []):
-                col_pct, col_reapply = st.columns([2, 1])
-                with col_pct:
-                    pct = st.number_input(
-                        f"Caixa por Trade (%) - {reg} {ver}",
-                        min_value=5.0,
-                        max_value=100.0,
-                        value=default_percent,
-                        step=5.0,
-                        key=f"pct_{reg}_{ver}",
-                    )
-                with col_reapply:
-                    reapply = st.checkbox(
-                        "Capital dinâmico",
-                        value=False,
-                        key=f"reapply_{reg}_{ver}",
-                    )
-                stake_por_regiao_versao[(reg, ver)] = pct / 100.0
-                reapply_por_regiao_versao[(reg, ver)] = reapply
 
-        n_piores = st.slider("Listar top perdas", 3, 50, 10)
+        with st.expander("⚙️ Configurar Alocação (Caixa %)"):
+            st.caption("Defina quanto do capital usar por trade.")
+            for reg in regioes_disponiveis:
+                st.markdown(f"**{reg}**")
+                for ver in versoes_por_regiao.get(reg, []):
+                    c1, c2 = st.columns([2, 1])
+                    with c1:
+                        pct = st.number_input(
+                            f"% Caixa ({ver})",
+                            min_value=1.0, max_value=100.0, value=default_percent, step=1.0,
+                            key=f"pct_{reg}_{ver}"
+                        )
+                    with c2:
+                        reapply = st.checkbox("Comp.", value=False, key=f"re_{reg}_{ver}", help="Juros Compostos")
+                    
+                    stake_por_regiao_versao[(reg, ver)] = pct / 100.0
+                    reapply_por_regiao_versao[(reg, ver)] = reapply
+                st.divider()
 
-        st.info(f"Total de registros brutos: {len(df)}")
+        n_piores = st.slider("Top Loss (qtd)", 3, 50, 10)
+        st.caption(f"Registros processados: {len(df)}")
 
-    # Filtros aplicados
+
+    # --- FILTRAGEM DE DADOS ---
     mask = pd.Series(True, index=df_entries.index)
     if regioes_sel:
         mask &= df_entries["Region"].isin(regioes_sel)
+    
     version_series = df_entries["Version"].astype(str)
     version_series = version_series.where(df_entries["Version"].notna(), "")
+    
     for reg, versao in versao_sel_por_regiao.items():
         if versao:
             mask &= ~((df_entries["Region"] == reg) & (version_series != versao))
+    
     mask &= df_entries["DateParsed"].between(pd.to_datetime(start_date), pd.to_datetime(end_date))
 
     df_filtered = df_entries[mask].copy()
-    df_filtered["Version"] = df_filtered["Version"].astype(str)
-    df_filtered["Version"] = df_filtered["Version"].replace("nan", "")
+    df_filtered["Version"] = df_filtered["Version"].astype(str).replace("nan", "")
     df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
 
-    # Ordena cronologicamente para curva e aplica stake por regiao
+    # Ordenação Cronológica
     df_filtered = df_filtered.sort_values("AnalysisUTC")
-    # Calculos globais
+    
+    # Cálculos de Capital e Equity
     stake_series, capital, ret_cum = _dynamic_stake_equity(
         df_filtered,
         capital_inicial,
@@ -352,17 +372,17 @@ def main() -> None:
     df_filtered["Capital"] = capital.values
     df_filtered["RetornoAcum"] = ret_cum.values
 
-    # Header
+    # --- DASHBOARD HEADER ---
     st.title("Relatório de Performance TCIM")
     st.markdown(
-        f"**Período:** {start_date} a {end_date} | **Regiões:** {', '.join(regioes_sel) if regioes_sel else 'Todas'}"
+        f"**Período:** {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')} | **Regiões:** {', '.join(regioes_sel) if regioes_sel else 'Todas'}"
     )
 
     if df_filtered.empty:
-        st.warning("Nenhuma entrada encontrada com os filtros selecionados.")
+        st.warning("⚠️ Nenhuma entrada encontrada com os filtros selecionados.")
         return
 
-    # KPIs globais
+    # --- KPIS GLOBAIS ---
     df_stats_global = df_filtered[df_filtered["TCIM_Vies"].notna() & (df_filtered["TCIM_Vies"] != "FORA")].copy()
 
     if not df_stats_global.empty:
@@ -372,7 +392,6 @@ def main() -> None:
             pd.to_numeric(df_stats_global["Down"], errors="coerce"),
         )
         df_stats_global["Acertou"] = df_stats_global["SignalPnL"] > 0
-
         metrics_global = _region_metrics(df_stats_global)
 
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -391,155 +410,122 @@ def main() -> None:
 
     st.divider()
 
-    # Abas
+    # --- ABAS DE ANÁLISE ---
     tab_metodo, tab_curva, tab_regiao, tab_mensal, tab_trades = st.tabs(
-        ["Método", "Curva de Capital", "Análise Regional", "Análise Mensal", "Piores Trades & Dados"]
+        ["📘 Método", "📈 Curva & Drawdown", "🌍 Análise Regional", "📅 Análise Mensal", "💰 Trades & Dados"]
     )
 
     with tab_metodo:
         st.subheader("Sobre o Método TCIM")
-        st.markdown(
-            """
-O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
-
-**Blocos**
-- Tendência: EMAs 20/50 e slopes.
-- Contexto: preço vs VWAP/EMA50 e distância em ATR.
-- Impulso: ADX.
-- Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
-
-Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
-"""
-        )
-        st.markdown(
-    """
-### **Sincronize-se com o Mercado!**
-
-Receba o viés analítico do TCIM e alertas de risco 
-diretamente no seu Telegram antes da abertura:<br>
-
-⏰ **Horários de Disparo (Pré-Sessão):**<br>
-🇺🇸 **América:** 10:16 *(Versão 1.0.3 e 1.2.3)*<br>
-🇯🇵 **Ásia:** 20:31 *(Versão 1.0.1 e 1.2.1)*<br>
-🇪🇺 **Europa:** 03:46 *(Versão 1.0.2 e 1.2.2)*
-""",
-    unsafe_allow_html=True
-)
-
-        telegram_path = Path("telegram.png")
-        if telegram_path.exists():
-            img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
+        c_desc, c_tele = st.columns([2, 1])
+        with c_desc:
             st.markdown(
-                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">'
-                f'<img src="data:image/png;base64,{img_b64}" alt="Telegram" style="height:24px;vertical-align:middle;margin-right:8px;">'
-                f'</a>'
-                f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank" rel="noopener">2k Extra - Técnicas de Decisão</a>',
-                unsafe_allow_html=True,
+                """
+                O **TCIM** (Tendência, Contexto, Impulso e Mitigação) é um algoritmo quantitativo que gera viés probabilístico 
+                cerca de 30 minutos antes da abertura das sessões globais.
+
+                **Arquitetura de Decisão:**
+                - 📈 **Tendência:** Análise de EMAs 20/50 e inclinação (slopes).
+                - 🌐 **Contexto:** Preço relativo a VWAP e volatilidade via ATR.
+                - 🚀 **Impulso:** Força direcional medida pelo ADX.
+                - 🛡️ **Mitigação:** Filtros de exaustão, pavios longos e spikes.
+                """
             )
-        else:
-            st.markdown('[2k Extra - Técnicas de Decisão](https://t.me/+OB9T7OXQ2o1iYmJh)')
+        with c_tele:
+            st.info(
+                """
+                **Horários de Disparo:**
+                - 🇺🇸 **América:** 10:16
+                - 🇯🇵 **Ásia:** 20:31
+                - 🇪🇺 **Europa:** 03:46
+                """
+            )
+            telegram_path = Path("telegram.png")
+            if telegram_path.exists():
+                img_b64 = base64.b64encode(telegram_path.read_bytes()).decode("ascii")
+                st.markdown(
+                    f'<a href="https://t.me/+OB9T7OXQ2o1iYmJh" target="_blank">'
+                    f'<img src="data:image/png;base64,{img_b64}" width="24" style="vertical-align:middle;margin-right:8px;">'
+                    f'<b>Entrar no Canal TCIM</b></a>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown('[🔗 Canal Telegram TCIM](https://t.me/+OB9T7OXQ2o1iYmJh)')
 
     with tab_curva:
-        st.subheader("Evolução Simulada do Patrimônio")
-        fig = px.line(
-            df_filtered,
-            x="AnalysisUTC",
-            y="Capital",
-            color="Region",
-            title="Crescimento do Capital por Região",
-            markers=True,
-            template="plotly_dark",
-        )
-        fig.update_layout(
-            hovermode="x unified",
-            separators=",.",
-            yaxis_tickformat=",.2f",
-        )
-        fig.update_traces(hovertemplate="%{x}<br>%{y:,.2f}<extra></extra>")
+        st.subheader("Evolução do Patrimônio e Risco")
+        
+        # Preparação dos dados para o plot
         capital_series = df_filtered["Capital"].reset_index(drop=True)
-        capital_with_start = pd.concat([pd.Series([capital_inicial]), capital_series], ignore_index=True)
-        date_series = pd.concat(
-            [pd.Series([pd.NaT]), df_filtered["DateParsed"].reset_index(drop=True)],
-            ignore_index=True,
+        # Recriar série com ponto de partida para o gráfico começar do zero (visual melhor)
+        # Mas mantendo o eixo X alinhado com AnalysisUTC pode ser tricky, vamos usar o df direto.
+        
+        # Calculo de Drawdown para o gráfico
+        pico_acumulado = df_filtered["Capital"].cummax()
+        dd_pct_series = (df_filtered["Capital"] - pico_acumulado) / pico_acumulado
+        
+        # Criação do Subplot (2 linhas: Capital e Drawdown)
+        fig = make_subplots(
+            rows=2, cols=1, 
+            shared_xaxes=True, 
+            vertical_spacing=0.05,
+            row_heights=[0.70, 0.30],
+            subplot_titles=("Curva de Capital", "Drawdown Subaquático (%)")
         )
-        analysis_series = pd.concat(
-            [pd.Series([pd.NaT]), df_filtered["AnalysisUTC"].reset_index(drop=True)],
-            ignore_index=True,
+
+        # Trace 1: Capital
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered["AnalysisUTC"], 
+                y=df_filtered["Capital"],
+                mode='lines',
+                name='Capital',
+                line=dict(color='#00CC96', width=2),
+                fill='tozeroy',
+                fillcolor='rgba(0, 204, 150, 0.1)'
+            ),
+            row=1, col=1
         )
-        pico = capital_with_start.cummax()
-        dd_series = (capital_with_start - pico) / pico
-        dd_abs_series = capital_with_start - pico
-        max_dd_pct = dd_series.min() if not dd_series.empty else 0.0
+
+        # Trace 2: Drawdown
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered["AnalysisUTC"], 
+                y=dd_pct_series,
+                mode='lines',
+                name='Drawdown',
+                line=dict(color='#EF553B', width=1),
+                fill='tozeroy',
+                fillcolor='rgba(239, 85, 59, 0.2)'
+            ),
+            row=2, col=1
+        )
+
+        # Layout Dark Moderno
+        fig.update_layout(
+            template="plotly_dark",
+            hovermode="x unified",
+            margin=dict(l=40, r=40, t=40, b=40),
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            height=600
+        )
+        
+        # Formatação dos eixos
+        fig.update_yaxes(tickformat=",.0f", title="Saldo ($)", row=1, col=1)
+        fig.update_yaxes(tickformat=".1%", title="Queda (%)", row=2, col=1)
+
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Cálculo de métricas de DD
+        max_dd_pct = dd_pct_series.min() if not dd_pct_series.empty else 0.0
+        # Drawdown absoluto
+        dd_abs_series = df_filtered["Capital"] - pico_acumulado
         max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
-        avg_stake = df_filtered['StakeRV'].mean()
-        boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
-        def _dd_window_from_series(series: pd.Series) -> tuple[int, int, pd.Timestamp, pd.Timestamp]:
-            if series.empty:
-                return 0, 0, pd.NaT, pd.NaT
-            trough_idx = int(series.idxmin())
-            peak_slice = capital_with_start.iloc[: trough_idx + 1]
-            peak_val = peak_slice.max()
-            peak_indices = peak_slice[peak_slice == peak_val].index
-            peak_idx = int(peak_indices[-1]) if len(peak_indices) else 0
-            start_date_dd = date_series.iloc[peak_idx]
-            end_date_dd = date_series.iloc[trough_idx]
-            return peak_idx, trough_idx, start_date_dd, end_date_dd
+        
+        c_dd1, c_dd2 = st.columns(2)
+        c_dd1.metric("Drawdown Máximo (%)", _format_percent_br(max_dd_pct * 100, 2))
+        c_dd2.metric("Drawdown Máximo ($)", _format_number_br(max_dd_abs, 2))
 
-        def _format_dd_period(start_date_dd: pd.Timestamp, end_date_dd: pd.Timestamp) -> str:
-            if pd.notna(start_date_dd) and pd.notna(end_date_dd):
-                return f' ({start_date_dd:%d/%m/%Y} a {end_date_dd:%d/%m/%Y})'
-            return ''
-
-        pct_peak_idx, pct_trough_idx, pct_start_date, pct_end_date = _dd_window_from_series(dd_series)
-        abs_peak_idx, abs_trough_idx, abs_start_date, abs_end_date = _dd_window_from_series(dd_abs_series)
-
-        dd_pct_period = _format_dd_period(pct_start_date, pct_end_date)
-        dd_abs_period = _format_dd_period(abs_start_date, abs_end_date)
-
-        col_dd_pct, col_dd_abs, col_dd_sel = st.columns([2, 2, 1])
-        with col_dd_pct:
-            st.metric("Drawdown maximo percentual", _format_percent_br(max_dd_pct * 100, 2))
-            if dd_pct_period:
-                st.caption(dd_pct_period.strip())
-        with col_dd_abs:
-            st.metric("Drawdown maximo absoluto", _format_number_br(max_dd_abs, 2))
-            boxes_caption = f"Caixas: {_format_number_br(boxes_lost, 2)}"
-            if dd_abs_period:
-                boxes_caption = f"{boxes_caption} {dd_abs_period.strip()}"
-            st.caption(boxes_caption)
-        with col_dd_sel:
-            dd_markers = st.multiselect(
-                "Marcar DD no grafico",
-                options=["Percentual", "Absoluto"],
-                default=["Percentual"],
-            )
-
-        if "Percentual" in dd_markers:
-            pct_start_ts = analysis_series.iloc[pct_peak_idx]
-            pct_end_ts = analysis_series.iloc[pct_trough_idx]
-            if pd.notna(pct_start_ts) and pd.notna(pct_end_ts):
-                fig.add_vrect(
-                    x0=pct_start_ts,
-                    x1=pct_end_ts,
-                    fillcolor="rgba(255, 99, 71, 0.18)",
-                    line_width=0,
-                    annotation_text="DD %",
-                    annotation_position="top left",
-                )
-        if "Absoluto" in dd_markers:
-            abs_start_ts = analysis_series.iloc[abs_peak_idx]
-            abs_end_ts = analysis_series.iloc[abs_trough_idx]
-            if pd.notna(abs_start_ts) and pd.notna(abs_end_ts):
-                fig.add_vrect(
-                    x0=abs_start_ts,
-                    x1=abs_end_ts,
-                    fillcolor="rgba(30, 144, 255, 0.18)",
-                    line_width=0,
-                    annotation_text="DD abs",
-                    annotation_position="top left",
-                )
-
-        st.plotly_chart(fig, width="stretch")
 
     with tab_regiao:
         st.subheader("Performance Detalhada por Região")
@@ -570,14 +556,14 @@ diretamente no seu Telegram antes da abertura:<br>
                     min_value=0,
                     max_value=1,
                 ),
-                "Ganho Médio": st.column_config.NumberColumn(format="$%.4f"),
-                "Perda Média": st.column_config.NumberColumn(format="$%.4f"),
+                "Ganho Médio": st.column_config.NumberColumn(format="$%.2f"),
+                "Perda Média": st.column_config.NumberColumn(format="$%.2f"),
                 "Payoff (R:R)": st.column_config.NumberColumn(format="%.2f"),
                 "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
                 "Expectativa (E)": st.column_config.NumberColumn(format="%.4f"),
             },
             hide_index=True,
-            width="stretch",
+            use_container_width=True,
         )
 
     with tab_mensal:
@@ -597,7 +583,9 @@ diretamente no seu Telegram antes da abertura:<br>
             )
 
         df_monthly_view = pd.DataFrame(monthly_rows).sort_values(["Região", "Mes"])
-
+        
+        # Pivotar para melhor visualização (Linhas = Meses, Colunas = Regiões) se desejar
+        # Mas vamos manter o formato lista por enquanto
         st.dataframe(
             df_monthly_view,
             column_config={
@@ -606,27 +594,35 @@ diretamente no seu Telegram antes da abertura:<br>
                 "Fator Lucro": st.column_config.NumberColumn(format="%.2f"),
             },
             hide_index=True,
-            width="stretch",
+            use_container_width=True,
         )
 
     with tab_trades:
         col_worst, col_raw = st.columns([1, 2])
 
         with col_worst:
-            st.markdown(f"### Top {n_piores} Maiores Perdas")
+            st.markdown(f"### 🔻 Top {n_piores} Maiores Perdas")
             perdas = df_filtered[df_filtered["PnL"] < 0].nsmallest(n_piores, "PnL")
+            
+            # Aplicação de cor
             st.dataframe(
-                perdas[["Date", "Region", "Version", "Symbol", "PnL"]],
-                column_config={"PnL": st.column_config.NumberColumn(format="$%.4f")},
-                hide_index=True,
+                perdas[["Date", "Region", "Symbol", "PnL"]].style.format({"PnL": "${:.2f}"}).map(highlight_pnl_col, subset=["PnL"]),
+                use_container_width=True,
+                hide_index=True
             )
 
         with col_raw:
-            st.markdown("### Dados Completos")
+            st.markdown("### 📋 Diário de Trades")
+            # Exibir PnL colorido e Score formatado
+            cols_show = ["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]
+            
             st.dataframe(
-                df_filtered[["Date", "Region", "Version", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score", "TCIM_Motivos"]],
-                height=400,
-                column_config={"PnL": st.column_config.NumberColumn(format="$%.4f")},
+                df_filtered[cols_show].style
+                    .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
+                    .map(highlight_pnl_col, subset=["PnL"]),
+                height=500,
+                use_container_width=True,
+                hide_index=True
             )
 
 
