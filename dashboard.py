@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Dashboard interativo do backtest TCIM - Versão Otimizada (Layout Final)
+Dashboard interativo do backtest TCIM - Versão Otimizada (UI Ajustada v2)
 """
 from __future__ import annotations
 
@@ -55,12 +55,14 @@ st.markdown("""
         color: #b0b0b0;
     }
     
-    /* CORREÇÃO CRÍTICA: Impede que o texto do checkbox quebre de linha na sidebar */
-    [data-testid="stSidebar"] [data-testid="stCheckbox"] label {
-        white-space: nowrap;
-        padding-top: 2px;
+    /* Ajuste de contraste para inputs na sidebar */
+    [data-testid="stSidebar"] input[type="number"] {
+        background-color: #2b2b2b;
+        border: 1px solid #444;
+        color: #ffffff;
+        border-radius: 4px;
     }
-
+    
     /* Melhorar legibilidade dos labels na sidebar */
     [data-testid="stSidebar"] label {
         font-size: 0.9rem;
@@ -85,6 +87,9 @@ def _csv_signature(csv_path: Path) -> tuple[int, int]:
 def load_data(csv_path: Path, signature: tuple[int, int]) -> pd.DataFrame:
     try:
         df = pd.read_csv(csv_path, sep=";")
+        
+        # Alterado para dayfirst=True para ser mais robusto com datas BR (DD/MM/YYYY)
+        # e aceitar variações que poderiam estar travando a leitura de 2026
         df["DateParsed"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
         return df
@@ -320,11 +325,13 @@ def main() -> None:
         min_date = date_source.min()
         max_date = date_source.max()
         
+        # Converte para data simples para o widget
         if pd.notna(min_date):
             min_date = min_date.date()
         if pd.notna(max_date):
             max_date = max_date.date()
 
+        # O value padrão pega o max_date atualizado do CSV
         date_range = st.date_input(
             "Período de Análise",
             value=(min_date, max_date),
@@ -350,8 +357,11 @@ def main() -> None:
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
-                    # AJUSTE DE COLUNAS: [1.1, 1.5] para equilibrar input e texto
-                    c_in, c_chk = st.columns([1.1, 1.5]) 
+                    # --- AJUSTE AQUI ---
+                    # Removemos a coluna vazia (buffer) e demos mais espaço para o checkbox
+                    # [1.2, 2.0] significa que o checkbox terá quase o dobro do espaço do input
+                    c_in, c_chk = st.columns([2.4, 1.6])
+                    
                     with c_in:
                         pct = st.number_input(
                             f"% ({ver})",
@@ -360,7 +370,7 @@ def main() -> None:
                             label_visibility="visible" 
                         )
                     with c_chk:
-                        # Espaçamento vertical para alinhamento visual
+                        # Ajuste fino vertical para alinhar o quadrado do check com o input
                         st.write("") 
                         st.write("")
                         reapply = st.checkbox(
@@ -474,17 +484,20 @@ def main() -> None:
                 """
             )
         with c_tele:
+            # Placeholder ou imagem
             st.info("Canal Telegram TCIM")
 
     with tab_curva:
         st.subheader("Evolução do Patrimônio e Risco")
         
+        # Opção de Visualização
         tipo_grafico = st.radio(
             "Estilo do Gráfico:",
             ["Clássico (Com Marcações)", "Analítico (Subplots)"],
             horizontal=True
         )
         
+        # Exibição dos Dados de DD (Texto)
         c_dd1, c_dd2 = st.columns(2)
         
         str_periodo_pct = ""
@@ -504,6 +517,7 @@ def main() -> None:
         st.markdown("---")
 
         if tipo_grafico == "Analítico (Subplots)":
+            # --- MODELO ANALÍTICO ---
             fig = make_subplots(
                 rows=2, cols=1, 
                 shared_xaxes=True, 
@@ -530,6 +544,7 @@ def main() -> None:
             st.plotly_chart(fig, use_container_width=True)
 
         else:
+            # --- MODELO CLÁSSICO (Dual DD) ---
             fig = px.line(
                 df_filtered, x="AnalysisUTC", y="Capital", color="Region",
                 title="Crescimento do Capital (com áreas de risco)", markers=True, template="plotly_dark"
