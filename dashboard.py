@@ -496,16 +496,23 @@ diretamente no seu Telegram antes da abertura:<br>
         dd_pct_period = _format_dd_period(pct_start_date, pct_end_date)
         dd_abs_period = _format_dd_period(abs_start_date, abs_end_date)
 
-        st.markdown(
-            f"**Drawdown maximo percentual:** {_format_percent_br(max_dd_pct * 100, 2)}{dd_pct_period}\n\n"
-            f"**Drawdown maximo absoluto:** {_format_number_br(max_dd_abs, 2)} ou "
-            f"{_format_number_br(boxes_lost, 2)} caixas{dd_abs_period}"
-        )
-        dd_markers = st.multiselect(
-            "Marcar DD no grafico",
-            options=["Percentual", "Absoluto"],
-            default=["Percentual"],
-        )
+        col_dd_pct, col_dd_abs, col_dd_sel = st.columns([2, 2, 1])
+        with col_dd_pct:
+            st.metric("Drawdown maximo percentual", _format_percent_br(max_dd_pct * 100, 2))
+            if dd_pct_period:
+                st.caption(dd_pct_period.strip())
+        with col_dd_abs:
+            st.metric("Drawdown maximo absoluto", _format_number_br(max_dd_abs, 2))
+            boxes_caption = f"Caixas: {_format_number_br(boxes_lost, 2)}"
+            if dd_abs_period:
+                boxes_caption = f"{boxes_caption} {dd_abs_period.strip()}"
+            st.caption(boxes_caption)
+        with col_dd_sel:
+            dd_markers = st.multiselect(
+                "Marcar DD no grafico",
+                options=["Percentual", "Absoluto"],
+                default=["Percentual"],
+            )
 
         if "Percentual" in dd_markers:
             pct_start_ts = analysis_series.iloc[pct_peak_idx]
