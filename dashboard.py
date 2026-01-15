@@ -466,13 +466,15 @@ diretamente no seu Telegram antes da abertura:<br>
         )
         pico = capital_with_start.cummax()
         dd_series = (capital_with_start - pico) / pico
+        dd_abs_series = capital_with_start - pico
         max_dd_pct = dd_series.min() if not dd_series.empty else 0.0
-        max_dd_abs = (capital_with_start - pico).min() if not capital_with_start.empty else 0.0
-        avg_stake = df_filtered["StakeRV"].mean()
+        max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
+        avg_stake = df_filtered['StakeRV'].mean()
         boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
-        dd_period = ""
-        if not dd_series.empty:
-            trough_idx = int(dd_series.idxmin())
+        def _dd_period_from_series(series: pd.Series) -> str:
+            if series.empty:
+                return ''
+            trough_idx = int(series.idxmin())
             peak_slice = capital_with_start.iloc[: trough_idx + 1]
             peak_val = peak_slice.max()
             peak_indices = peak_slice[peak_slice == peak_val].index
@@ -480,11 +482,16 @@ diretamente no seu Telegram antes da abertura:<br>
             start_date_dd = date_series.iloc[peak_idx]
             end_date_dd = date_series.iloc[trough_idx]
             if pd.notna(start_date_dd) and pd.notna(end_date_dd):
-                dd_period = f" - de {start_date_dd:%d/%m/%Y} ate {end_date_dd:%d/%m/%Y}"
+                return f' ({start_date_dd:%d/%m/%Y} a {end_date_dd:%d/%m/%Y})'
+            return ''
+
+        dd_pct_period = _dd_period_from_series(dd_series)
+        dd_abs_period = _dd_period_from_series(dd_abs_series)
+
         st.markdown(
-            f"**Drawdown máximo:** {_format_percent_br(max_dd_pct * 100, 2)} "
-            f"({_format_number_br(max_dd_abs, 2)} absoluto) ou "
-            f"{_format_number_br(boxes_lost, 2)} caixas médias{dd_period}"
+            f"**Drawdown maximo percentual:** {_format_percent_br(max_dd_pct * 100, 2)}{dd_pct_period}\n\n"
+            f"**Drawdown maximo absoluto:** {_format_number_br(max_dd_abs, 2)} ou "
+            f"{_format_number_br(boxes_lost, 2)} caixas{dd_abs_period}"
         )
 
     with tab_regiao:
