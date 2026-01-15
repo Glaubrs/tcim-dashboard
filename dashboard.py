@@ -320,6 +320,11 @@ def main() -> None:
                 reapply_por_regiao_versao[(reg, ver)] = reapply
 
         n_piores = st.slider("Listar top perdas", 3, 50, 10)
+        dd_markers = st.multiselect(
+            "Marcar DD no grafico",
+            options=["Percentual", "Absoluto"],
+            default=["Percentual"],
+        )
 
         st.info(f"Total de registros brutos: {len(df)}")
 
@@ -464,6 +469,10 @@ diretamente no seu Telegram antes da abertura:<br>
             [pd.Series([pd.NaT]), df_filtered["DateParsed"].reset_index(drop=True)],
             ignore_index=True,
         )
+        analysis_series = pd.concat(
+            [pd.Series([pd.NaT]), df_filtered["AnalysisUTC"].reset_index(drop=True)],
+            ignore_index=True,
+        )
         pico = capital_with_start.cummax()
         dd_series = (capital_with_start - pico) / pico
         dd_abs_series = capital_with_start - pico
@@ -471,9 +480,9 @@ diretamente no seu Telegram antes da abertura:<br>
         max_dd_abs = dd_abs_series.min() if not dd_abs_series.empty else 0.0
         avg_stake = df_filtered['StakeRV'].mean()
         boxes_lost = abs(max_dd_abs) / avg_stake if avg_stake > 0 else 0.0
-        def _dd_period_from_series(series: pd.Series) -> str:
+        def _dd_window_from_series(series: pd.Series) -> tuple[int, int, pd.Timestamp, pd.Timestamp]:
             if series.empty:
-                return ''
+                return 0, 0, pd.NaT, pd.NaT
             trough_idx = int(series.idxmin())
             peak_slice = capital_with_start.iloc[: trough_idx + 1]
             peak_val = peak_slice.max()
@@ -481,18 +490,49 @@ diretamente no seu Telegram antes da abertura:<br>
             peak_idx = int(peak_indices[-1]) if len(peak_indices) else 0
             start_date_dd = date_series.iloc[peak_idx]
             end_date_dd = date_series.iloc[trough_idx]
+            return peak_idx, trough_idx, start_date_dd, end_date_dd
+
+        def _format_dd_period(start_date_dd: pd.Timestamp, end_date_dd: pd.Timestamp) -> str:
             if pd.notna(start_date_dd) and pd.notna(end_date_dd):
                 return f' ({start_date_dd:%d/%m/%Y} a {end_date_dd:%d/%m/%Y})'
             return ''
 
-        dd_pct_period = _dd_period_from_series(dd_series)
-        dd_abs_period = _dd_period_from_series(dd_abs_series)
+        pct_peak_idx, pct_trough_idx, pct_start_date, pct_end_date = _dd_window_from_series(dd_series)
+        abs_peak_idx, abs_trough_idx, abs_start_date, abs_end_date = _dd_window_from_series(dd_abs_series)
+
+        dd_pct_period = _format_dd_period(pct_start_date, pct_end_date)
+        dd_abs_period = _format_dd_period(abs_start_date, abs_end_date)
 
         st.markdown(
             f"**Drawdown maximo percentual:** {_format_percent_br(max_dd_pct * 100, 2)}{dd_pct_period}\n\n"
             f"**Drawdown maximo absoluto:** {_format_number_br(max_dd_abs, 2)} ou "
             f"{_format_number_br(boxes_lost, 2)} caixas{dd_abs_period}"
         )
+
+        if "Percentual" in dd_markers:
+            pct_start_ts = analysis_series.iloc[pct_peak_idx]
+            pct_end_ts = analysis_series.iloc[pct_trough_idx]
+            if pd.notna(pct_start_ts) and pd.notna(pct_end_ts):
+                fig.add_vrect(
+                    x0=pct_start_ts,
+                    x1=pct_end_ts,
+                    fillcolor="rgba(255, 99, 71, 0.18)",
+                    line_width=0,
+                    annotation_text="DD %",
+                    annotation_position="top left",
+                )
+        if "Absoluto" in dd_markers:
+            abs_start_ts = analysis_series.iloc[abs_peak_idx]
+            abs_end_ts = analysis_series.iloc[abs_trough_idx]
+            if pd.notna(abs_start_ts) and pd.notna(abs_end_ts):
+                fig.add_vrect(
+                    x0=abs_start_ts,
+                    x1=abs_end_ts,
+                    fillcolor="rgba(30, 144, 255, 0.18)",
+                    line_width=0,
+                    annotation_text="DD abs",
+                    annotation_position="top left",
+                )
 
     with tab_regiao:
         st.subheader("Performance Detalhada por Região")
