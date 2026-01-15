@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Dashboard interativo do backtest TCIM - Versão Otimizada (UI Ajustada)
+Dashboard interativo do backtest TCIM - Versão Otimizada (UI Ajustada v2)
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------
-# CSS Personalizado (Visual Pro + Ajustes Sidebar)
+# CSS Personalizado
 # ------------------------------------------------------
 st.markdown("""
 <style>
@@ -57,7 +57,7 @@ st.markdown("""
     
     /* Ajuste de contraste para inputs na sidebar */
     [data-testid="stSidebar"] input[type="number"] {
-        background-color: #2b2b2b; /* Fundo mais claro que o preto total */
+        background-color: #2b2b2b;
         border: 1px solid #444;
         color: #ffffff;
         border-radius: 4px;
@@ -87,7 +87,10 @@ def _csv_signature(csv_path: Path) -> tuple[int, int]:
 def load_data(csv_path: Path, signature: tuple[int, int]) -> pd.DataFrame:
     try:
         df = pd.read_csv(csv_path, sep=";")
-        df["DateParsed"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+        
+        # Alterado para dayfirst=True para ser mais robusto com datas BR (DD/MM/YYYY)
+        # e aceitar variações que poderiam estar travando a leitura de 2026
+        df["DateParsed"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df["AnalysisUTC"] = pd.to_datetime(df["AnalysisUTC"], errors="coerce")
         return df
     except Exception as exc:
@@ -234,27 +237,11 @@ def _calculate_dd_window(series_values: pd.Series, date_series: pd.Series) -> tu
     if series_values.empty:
         return 0, 0, pd.NaT, pd.NaT
     
-    # Índice do ponto mais baixo (vale)
     trough_idx = int(series_values.idxmin())
-    
-    # Serie até o ponto do vale para achar o pico anterior
-    # Importante: estamos assumindo que series_values já é o DD ou Equity dependendo do contexto.
-    # Mas para achar datas corretas, precisamos analisar a curva de DD.
-    
-    # Se series_values for o Drawdown (ex: 0, -0.1, -0.2...), o pico anterior é o último 0 antes do vale.
-    # Mas aqui vamos assumir que passamos a série de DD já calculada.
-    
-    # Simplificação: O DD máximo ocorre no 'trough_idx'. 
-    # O início do DD é o último ponto onde DD era 0 antes de trough_idx.
-    
-    # Fatia até o vale
     slice_dd = series_values.iloc[:trough_idx+1]
     
-    # Início do DD é onde o DD era 0 (ou quase 0) mais recentemente
-    # Se series_values é DD puro (ex: 0.0, -0.05), procuramos o max (que é 0)
     peaks = slice_dd[slice_dd == 0]
     if peaks.empty:
-        # Se não tem zero (começou já caindo), pega o primeiro
         peak_idx = 0
     else:
         peak_idx = int(peaks.index[-1])
@@ -334,13 +321,17 @@ def main() -> None:
         date_source = df["DateParsed"].dropna()
         if date_source.empty:
             date_source = df_entries["DateParsed"].dropna()
+        
         min_date = date_source.min()
         max_date = date_source.max()
+        
+        # Converte para data simples para o widget
         if pd.notna(min_date):
             min_date = min_date.date()
         if pd.notna(max_date):
             max_date = max_date.date()
 
+        # O value padrão pega o max_date atualizado do CSV
         date_range = st.date_input(
             "Período de Análise",
             value=(min_date, max_date),
@@ -366,21 +357,26 @@ def main() -> None:
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
-                    # Layout ajustado: Input menor (usando colunas vazias para "espremer")
-                    # c_in: input, c_chk: checkbox, c_buff: espaço vazio
+                    # Layout ajustado
                     c_in, c_chk, c_buff = st.columns([1.2, 0.8, 0.5]) 
                     with c_in:
+                        # Step mudado para 5.0 conforme solicitado
                         pct = st.number_input(
                             f"% ({ver})",
-                            min_value=1.0, max_value=100.0, value=default_percent, step=1.0,
+                            min_value=1.0, max_value=100.0, value=default_percent, step=5.0,
                             key=f"pct_{reg}_{ver}",
                             label_visibility="visible" 
                         )
                     with c_chk:
-                        # Espaço vertical para alinhar checkbox com input
                         st.write("") 
                         st.write("")
-                        reapply = st.checkbox("Capital Dinâmico.", value=False, key=f"re_{reg}_{ver}")
+                        # Tooltip adicionado
+                        reapply = st.checkbox(
+                            "Juros Comp.", 
+                            value=False, 
+                            key=f"re_{reg}_{ver}",
+                            help="Ao marcar, o % é calculado sobre o Saldo Total (Composto). Desmarcado = Capital Inicial."
+                        )
                     
                     stake_por_regiao_versao[(reg, ver)] = pct / 100.0
                     reapply_por_regiao_versao[(reg, ver)] = reapply
@@ -486,7 +482,8 @@ def main() -> None:
                 """
             )
         with c_tele:
-            st.info("Telegram Channel info placeholder")
+            # Placeholder ou imagem
+            st.info("Canal Telegram TCIM")
 
     with tab_curva:
         st.subheader("Evolução do Patrimônio e Risco")
@@ -518,7 +515,7 @@ def main() -> None:
         st.markdown("---")
 
         if tipo_grafico == "Analítico (Subplots)":
-            # --- MODELO NOVO ---
+            # --- MODELO ANALÍTICO ---
             fig = make_subplots(
                 rows=2, cols=1, 
                 shared_xaxes=True, 
@@ -545,20 +542,31 @@ def main() -> None:
             st.plotly_chart(fig, use_container_width=True)
 
         else:
-            # --- MODELO CLÁSSICO ---
+            # --- MODELO CLÁSSICO (Dual DD) ---
             fig = px.line(
                 df_filtered, x="AnalysisUTC", y="Capital", color="Region",
-                title="Crescimento do Capital", markers=True, template="plotly_dark"
+                title="Crescimento do Capital (com áreas de risco)", markers=True, template="plotly_dark"
             )
             fig.update_layout(hovermode="x unified", height=500)
             
-            # Adicionar retângulos de DD
+            # 1. Área de Drawdown PERCENTUAL (Vermelho)
             if pd.notna(start_dd_pct) and pd.notna(end_dd_pct):
                 fig.add_vrect(
                     x0=start_dd_pct, x1=end_dd_pct,
-                    fillcolor="rgba(255, 99, 71, 0.2)", line_width=0,
-                    annotation_text="DD Máx", annotation_position="top left"
+                    fillcolor="rgba(255, 50, 50, 0.15)", line_width=0,
+                    annotation_text="DD %", annotation_position="top left",
+                    annotation_font_color="#ff6b6b"
                 )
+            
+            # 2. Área de Drawdown ABSOLUTO (Azul)
+            if pd.notna(start_dd_abs) and pd.notna(end_dd_abs):
+                fig.add_vrect(
+                    x0=start_dd_abs, x1=end_dd_abs,
+                    fillcolor="rgba(50, 50, 255, 0.15)", line_width=0,
+                    annotation_text="DD $", annotation_position="bottom right",
+                    annotation_font_color="#6b6bff"
+                )
+                
             st.plotly_chart(fig, use_container_width=True)
 
 
