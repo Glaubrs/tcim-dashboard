@@ -383,6 +383,24 @@ def main() -> None:
             st.divider()
             
             st.caption("Alocação por Trade (% do Capital)")
+            c_all_pct, c_all_btn = st.columns([2, 1])
+            with c_all_pct:
+                pct_global = st.number_input(
+                    "% do capital (aplicar a todas)",
+                    min_value=1.0,
+                    max_value=100.0,
+                    value=default_percent,
+                    step=5.0,
+                    key="pct_global",
+                )
+            with c_all_btn:
+                st.write("")
+                st.write("")
+                aplicar_todas = st.button("Aplicar a todas")
+            if aplicar_todas:
+                for reg in regioes_disponiveis:
+                    for ver in versoes_por_regiao.get(reg, []):
+                        st.session_state[f"pct_{reg}_{ver}"] = pct_global
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
