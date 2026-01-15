@@ -357,10 +357,12 @@ def main() -> None:
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
-                    # Layout ajustado
-                    c_in, c_chk, c_buff = st.columns([1.2, 0.8, 0.5]) 
+                    # --- AJUSTE AQUI ---
+                    # Removemos a coluna vazia (buffer) e demos mais espaço para o checkbox
+                    # [1.2, 2.0] significa que o checkbox terá quase o dobro do espaço do input
+                    c_in, c_chk = st.columns([1.2, 2.0]) 
+                    
                     with c_in:
-                        # Step mudado para 5.0 conforme solicitado
                         pct = st.number_input(
                             f"% ({ver})",
                             min_value=1.0, max_value=100.0, value=default_percent, step=5.0,
@@ -368,14 +370,14 @@ def main() -> None:
                             label_visibility="visible" 
                         )
                     with c_chk:
+                        # Ajuste fino vertical para alinhar o quadrado do check com o input
                         st.write("") 
                         st.write("")
-                        # Tooltip adicionado
                         reapply = st.checkbox(
                             "Juros Comp.", 
                             value=False, 
                             key=f"re_{reg}_{ver}",
-                            help="Ao marcar, o % é calculado sobre o Saldo Total (Composto). Desmarcado = Capital Inicial."
+                            help="Marcar: % sobre Saldo Total.\nDesmarcar: % sobre Capital Inicial."
                         )
                     
                     stake_por_regiao_versao[(reg, ver)] = pct / 100.0
