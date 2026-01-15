@@ -380,7 +380,7 @@ def main() -> None:
                         # Espaço vertical para alinhar checkbox com input
                         st.write("") 
                         st.write("")
-                        reapply = st.checkbox("Juros Comp.", value=False, key=f"re_{reg}_{ver}")
+                        reapply = st.checkbox("Capital Dinâmico.", value=False, key=f"re_{reg}_{ver}")
                     
                     stake_por_regiao_versao[(reg, ver)] = pct / 100.0
                     reapply_por_regiao_versao[(reg, ver)] = reapply
