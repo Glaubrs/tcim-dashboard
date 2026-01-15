@@ -735,8 +735,12 @@ def main() -> None:
             )
         with col_raw:
             st.markdown("### 📋 Diário de Trades")
+            mostrar_apenas_pnl = st.checkbox("Mostrar apenas entradas com PnL", value=False)
+            diario_df = df_filtered_all.copy()
+            if mostrar_apenas_pnl:
+                diario_df = diario_df[diario_df["PnL"].notna()]
             st.dataframe(
-                df_filtered_all[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
+                diario_df[["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
                 .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
                 .map(highlight_pnl_col, subset=["PnL"]),
                 height=500, use_container_width=True, hide_index=True
