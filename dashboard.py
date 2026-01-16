@@ -742,10 +742,10 @@ def main() -> None:
             if "DateParsed" in diario_df.columns:
                 diario_df = diario_df.sort_values("DateParsed", ascending=False)
             st.dataframe(
-                diario_df[["Date", "DateParsed", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
+                diario_df[["Date", "DateParsed", "Region", "Version", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"]].style
                 .format({"PnL": "${:.2f}", "TCIM_Score": "{:.2f}"})
                 .map(highlight_pnl_col, subset=["PnL"]),
-                column_order=["Date", "Region", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"],
+                column_order=["Date", "Region", "Version", "Symbol", "PnL", "TCIM_Vies", "TCIM_Score"],
                 height=500, use_container_width=True, hide_index=True
             )
 
