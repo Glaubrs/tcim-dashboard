@@ -50,9 +50,15 @@ st.markdown("""
         padding: 15px;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        text-align: center;
     }
     div[data-testid="stMetric"] label {
         color: #b0b0b0;
+        width: 100%;
+        text-align: center;
+    }
+    div[data-testid="stMetric"] > div {
+        justify-content: center;
     }
     
     /* Ajuste de contraste para inputs na sidebar */
@@ -515,7 +521,24 @@ def main() -> None:
         df_stats_global["Acertou"] = df_stats_global["SignalPnL"] > 0
         metrics_global = _region_metrics(df_stats_global)
 
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        df_stats_global["VersionStr"] = df_stats_global["Version"].fillna("").astype(str).replace("nan", "")
+        best_versions = {}
+        region_order = ["America", "Asia", "Europe"]
+        by_region = (
+            df_stats_global.groupby(["Region", "VersionStr"])["Acertou"]
+            .mean()
+            .reset_index()
+        )
+        for region in region_order:
+            subset = by_region[by_region["Region"] == region]
+            if subset.empty:
+                best_versions[region] = "N/D"
+            else:
+                best_row = subset.sort_values("Acertou", ascending=False).iloc[0]
+                version_val = best_row["VersionStr"] or "N/D"
+                best_versions[region] = version_val
+
+        kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns([1, 1, 1, 1, 1.4])
         final_capital = df_filtered["Capital"].iloc[-1]
         roi_total = ((final_capital - capital_inicial) / capital_inicial) * 100
 
@@ -523,6 +546,25 @@ def main() -> None:
         kpi2.metric("Total Trades", metrics_global["entradas"])
         kpi3.metric("Win Rate Global", _format_percent_br(metrics_global["taxa"] * 100, 2))
         kpi4.metric("Fator de Lucro", _format_number_br(metrics_global["fator_lucro"], 2))
+        with kpi5:
+            st.markdown(
+                f"""
+                <div style="background:#1e1e1e; border:1px solid #333; padding:12px; border-radius:8px; text-align:center;">
+                    <div style="font-size:13px; opacity:0.8; margin-bottom:6px;">Melhores Versoes/Regiao</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; font-weight:600;">
+                        <div>America</div>
+                        <div>Asia</div>
+                        <div>Europa</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-top:6px;">
+                        <div>{best_versions.get("America", "N/D")}</div>
+                        <div>{best_versions.get("Asia", "N/D")}</div>
+                        <div>{best_versions.get("Europe", "N/D")}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     st.divider()
 
