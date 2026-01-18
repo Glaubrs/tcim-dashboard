@@ -408,7 +408,7 @@ def main() -> None:
                 st.button("Aplicar a todas", on_click=_apply_global_pct)
 
             st.divider()
-            st.caption("Aloca??o por Trade (% do Capital)")
+            st.caption("Alocação por Trade (% do Capital)")
             for reg in regioes_disponiveis:
                 st.markdown(f"**{reg}**")
                 for ver in versoes_por_regiao.get(reg, []):
