@@ -537,10 +537,33 @@ def main() -> None:
         with c_desc:
             st.markdown(
                 """
-                O **TCIM** (Tendência, Contexto, Impulso e Mitigação) é um algoritmo quantitativo que gera viés probabilístico 
-                cerca de 30 minutos antes da abertura das sessões globais.
+                O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
+
+                **Blocos**
+                - Tendência: EMAs 20/50 e slopes.
+                - Contexto: preço vs VWAP/EMA50 e distância em ATR.
+                - Impulso: ADX.
+                - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
+
+                Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
                 """
             )
+            st.markdown(
+                """
+            ### **Sincronize-se com o Mercado!**
+
+            Receba o viés analítico do TCIM e alertas de risco 
+            diretamente no seu Telegram antes da abertura:<br>
+
+            ⏰ **Horários de Disparo (Pré-Sessão):**<br>
+            🇺🇸 **América:** 10:16 *(Versão 1.0.3 e 1.2.3)*<br>
+            🇯🇵 **Ásia:** 20:31 *(Versão 1.0.1 e 1.2.1)*<br>
+            🇪🇺 **Europa:** 03:46 *(Versão 1.0.2 e 1.2.2)*
+            """,
+                unsafe_allow_html=True
+            )
+
+            
         with c_tele:
             # Placeholder ou imagem
             st.info("Canal Telegram TCIM")
