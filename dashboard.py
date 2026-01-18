@@ -521,22 +521,34 @@ def main() -> None:
         df_stats_global["Acertou"] = df_stats_global["SignalPnL"] > 0
         metrics_global = _region_metrics(df_stats_global)
 
-        df_stats_global["VersionStr"] = df_stats_global["Version"].fillna("").astype(str).replace("nan", "")
         best_versions = {}
         region_order = ["America", "Asia", "Europe"]
-        by_region = (
-            df_stats_global.groupby(["Region", "VersionStr"])["Acertou"]
-            .mean()
-            .reset_index()
-        )
-        for region in region_order:
-            subset = by_region[by_region["Region"] == region]
-            if subset.empty:
+        df_best_base = df_entries.copy()
+        df_best = df_best_base[df_best_base["TCIM_Vies"].notna() & (df_best_base["TCIM_Vies"] != "FORA")].copy()
+        if df_best.empty:
+            for region in region_order:
                 best_versions[region] = "N/D"
-            else:
-                best_row = subset.sort_values("Acertou", ascending=False).iloc[0]
-                version_val = best_row["VersionStr"] or "N/D"
-                best_versions[region] = version_val
+        else:
+            df_best["SignalPnL"] = np.where(
+                df_best["TCIM_Vies"] == "COMPRA",
+                pd.to_numeric(df_best["Up"], errors="coerce"),
+                pd.to_numeric(df_best["Down"], errors="coerce"),
+            )
+            df_best["Acertou"] = df_best["SignalPnL"] > 0
+            df_best["VersionStr"] = df_best["Version"].fillna("").astype(str).replace("nan", "")
+            by_region = (
+                df_best.groupby(["Region", "VersionStr"])["Acertou"]
+                .mean()
+                .reset_index()
+            )
+            for region in region_order:
+                subset = by_region[by_region["Region"] == region]
+                if subset.empty:
+                    best_versions[region] = "N/D"
+                else:
+                    best_row = subset.sort_values("Acertou", ascending=False).iloc[0]
+                    version_val = best_row["VersionStr"] or "N/D"
+                    best_versions[region] = version_val
 
         kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns([1, 1, 1, 1, 1.4])
         final_capital = df_filtered["Capital"].iloc[-1]
