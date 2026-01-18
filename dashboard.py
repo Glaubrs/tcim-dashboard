@@ -537,23 +537,24 @@ def main() -> None:
 
 
 
+
     with tab_metodo:
         st.subheader("Sobre o Método TCIM")
-        c_desc, c_tele = st.columns([2.2, 1])
-        with c_desc:
-            st.markdown(
-                """
-                O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
+        st.markdown(
+            """
+            O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
 
-                **Blocos**
-                - Tendência: EMAs 20/50 e slopes.
-                - Contexto: preço vs VWAP/EMA50 e distância em ATR.
-                - Impulso: ADX.
-                - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
+            **Blocos**
+            - Tendência: EMAs 20/50 e slopes.
+            - Contexto: preço vs VWAP/EMA50 e distância em ATR.
+            - Impulso: ADX.
+            - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
 
-                Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
-                """
-            )
+            Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
+            """
+        )
+        c_sync, c_tele = st.columns([2.2, 1])
+        with c_sync:
             st.markdown(
                 """
             ### **Sincronize-se com o Mercado!**
