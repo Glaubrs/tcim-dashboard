@@ -534,38 +534,63 @@ def main() -> None:
 
 
 
+
+
+
     with tab_metodo:
         st.subheader("Sobre o Método TCIM")
-        st.markdown(
-            """
-            O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
+        c_desc, c_tele = st.columns([2.2, 1])
+        with c_desc:
+            st.markdown(
+                """
+                O TCIM (Tendência, Contexto, Impulso e Mitigação) gera viés probabilístico (compra, venda ou fora) cerca de 30 minutos antes da abertura de Ásia, Europa e América.
 
-            **Blocos**
-            - Tendência: EMAs 20/50 e slopes.
-            - Contexto: preço vs VWAP/EMA50 e distância em ATR.
-            - Impulso: ADX.
-            - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
+                **Blocos**
+                - Tendência: EMAs 20/50 e slopes.
+                - Contexto: preço vs VWAP/EMA50 e distância em ATR.
+                - Impulso: ADX.
+                - Mitigação: alerta de volatilidade extrema, pavios e esticamentos.
 
-            Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
-            """
-        )
-        st.markdown(
-            """
-        ### **Sincronize-se com o Mercado!**
+                Scores somam sinais positivos/negativos. Ex.: Score >= 2.5 compra; <= -2.5 venda; intermediário fora. Cada decisão vem com motivos e alertas.
+                """
+            )
+            st.markdown(
+                """
+            ### **Sincronize-se com o Mercado!**
 
-        Receba o viés analítico do TCIM e alertas de risco 
-        diretamente no seu Telegram antes da abertura:<br>
+            Receba o viés analítico do TCIM e alertas de risco 
+            diretamente no seu Telegram antes da abertura:<br>
 
-        **Horários de Disparo (Pré-Sessão):**<br>
-        **América:** 10:16 *(Versão 1.0.3 e 1.2.3)*<br>
-        **Ásia:** 20:31 *(Versão 1.0.1 e 1.2.1)*<br>
-        **Europa:** 03:46 *(Versão 1.0.2 e 1.2.2)*
-        """,
-            unsafe_allow_html=True
-        )
-        st.image("telegram.png", width=120)
-        st.markdown("### Canal Telegram")
-        st.markdown("[2k Extra - Técnicas de Decisão](https://t.me/+OB9T7OXQ2o1iYmJh)")
+            **Horários de Disparo (Pré-Sessão):**<br>
+            **América:** 10:16 *(Versão 1.0.3 e 1.2.3)*<br>
+            **Ásia:** 20:31 *(Versão 1.0.1 e 1.2.1)*<br>
+            **Europa:** 03:46 *(Versão 1.0.2 e 1.2.2)*
+            """,
+                unsafe_allow_html=True
+            )
+        with c_tele:
+            tg_path = Path("telegram.png")
+            if tg_path.exists():
+                tg_b64 = base64.b64encode(tg_path.read_bytes()).decode("ascii")
+                tg_img = (
+                    f'<img src="data:image/png;base64,{tg_b64}" '
+                    f'style="width:120px; margin: 0 auto 10px auto; display:block;" />'
+                )
+            else:
+                tg_img = ""
+            st.markdown(
+                f"""
+                <div style=\"background:#1e1e1e; border:1px solid #333; padding:16px; border-radius:10px; text-align:center;\">
+                    {tg_img}
+                    <div style=\"font-size:18px; font-weight:700; margin-bottom:6px;\">Canal Telegram</div>
+                    <a href=\"https://t.me/+OB9T7OXQ2o1iYmJh\" target=\"_blank\" rel=\"noopener\"
+                       style=\"color:#8dd3ff; text-decoration:none; font-weight:600;\">
+                        2k Extra - Técnicas de Decisão
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     with tab_curva:
         st.subheader("Evolução do Patrimônio e Risco")
