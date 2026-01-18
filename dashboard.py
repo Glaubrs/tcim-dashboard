@@ -565,8 +565,10 @@ def main() -> None:
 
             
         with c_tele:
-            # Placeholder ou imagem
-            st.info("Canal Telegram TCIM")
+            st.markdown(
+                "### Canal Telegram\n"
+                "[2k Extra - Técnicas de Decisão](https://t.me/+OB9T7OXQ2o1iYmJh)"
+            )
 
     with tab_curva:
         st.subheader("Evolução do Patrimônio e Risco")
