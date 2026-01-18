@@ -550,10 +550,10 @@ def main() -> None:
             st.markdown(
                 f"""
                 <div style="background:#1e1e1e; border:1px solid #333; padding:12px; border-radius:8px; text-align:center;">
-                    <div style="font-size:13px; opacity:0.8; margin-bottom:6px;">Melhores Versoes/Regiao</div>
+                    <div style="font-size:13px; opacity:0.8; margin-bottom:6px;">Melhores Versões/Região</div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; font-weight:600;">
-                        <div>America</div>
-                        <div>Asia</div>
+                        <div>América</div>
+                        <div>Ásia</div>
                         <div>Europa</div>
                     </div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-top:6px;">
