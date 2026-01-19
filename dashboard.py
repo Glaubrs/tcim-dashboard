@@ -113,6 +113,51 @@ def compute_directional_pnl(df: pd.DataFrame) -> pd.Series:
     return pnl
 
 
+def _compute_signal_pnl(df: pd.DataFrame) -> pd.Series:
+    return np.where(
+        df["TCIM_Vies"] == "COMPRA",
+        pd.to_numeric(df["Up"], errors="coerce"),
+        pd.to_numeric(df["Down"], errors="coerce"),
+    )
+
+
+def _compute_version_win_rates(df_entries: pd.DataFrame) -> dict[tuple[str, str], float]:
+    if df_entries.empty:
+        return {}
+    df_rates = df_entries[df_entries["TCIM_Vies"].notna() & (df_entries["TCIM_Vies"] != "FORA")].copy()
+    if df_rates.empty:
+        return {}
+    df_rates["SignalPnL"] = _compute_signal_pnl(df_rates)
+    df_rates["Acertou"] = df_rates["SignalPnL"] > 0
+    rates = df_rates.groupby(["Region", "Version"])["Acertou"].mean()
+    return {(reg, str(ver)): float(val) for (reg, ver), val in rates.items()}
+
+
+def _select_single_account_entries(
+    df_entries: pd.DataFrame,
+    win_rate_map: dict[tuple[str, str], float],
+) -> pd.DataFrame:
+    if df_entries.empty or not win_rate_map:
+        return df_entries
+    df = df_entries.copy()
+    rate_series = pd.Series(win_rate_map)
+    rate_series.index = pd.MultiIndex.from_tuples(rate_series.index, names=["Region", "Version"])
+    df = df.join(rate_series.rename("WinRate"), on=["Region", "Version"])
+    df["WinRate"] = df["WinRate"].fillna(-1.0)
+    df["ScoreNum"] = pd.to_numeric(df.get("TCIM_Score"), errors="coerce").fillna(-9999.0)
+
+    group_cols = ["Region", "AnalysisUTC", "Symbol"]
+    if any(col not in df.columns for col in group_cols):
+        group_cols = ["Region", "AnalysisUTC"]
+
+    df_sorted = df.sort_values(
+        group_cols + ["WinRate", "ScoreNum", "Version"],
+        ascending=[True] * len(group_cols) + [False, False, True],
+    )
+    selected = df_sorted.groupby(group_cols, as_index=False, sort=False).head(1)
+    return selected.drop(columns=["WinRate", "ScoreNum"])
+
+
 def _dynamic_stake_equity(
     df_filtered: pd.DataFrame,
     initial_capital: float,
@@ -352,6 +397,19 @@ def main() -> None:
             else:
                 versao_sel_por_regiao[reg] = None
 
+        simular_conta_unica = st.checkbox(
+            "Simular conta Çœnica por regiÇœo (prioriza melhor taxa de acerto)",
+            value=False,
+            help="Se houver sinais simultÇâneos nas versÇæes, escolhe a de maior taxa de acerto. Se sÇó uma sinalizar, ela entra.",
+        )
+        base_win_rate = "PerÇðodo filtrado"
+        if simular_conta_unica:
+            base_win_rate = st.selectbox(
+                "Base da taxa de acerto",
+                ["PerÇðodo filtrado", "HistÇórico completo"],
+                index=0,
+            )
+
         # Filtro de Data
         date_source = df["DateParsed"].dropna()
         if date_source.empty:
@@ -462,6 +520,22 @@ def main() -> None:
 
     df_filtered_all = df_base[mask].copy()
     df_filtered = df_entries[mask.reindex(df_entries.index, fill_value=False)].copy()
+
+    if simular_conta_unica:
+        if base_win_rate == "HistÇórico completo":
+            map_source = df_entries.copy()
+            if regioes_sel:
+                map_source = map_source[map_source["Region"].isin(regioes_sel)]
+        else:
+            map_source = df_entries[mask.reindex(df_entries.index, fill_value=False)].copy()
+
+        win_rate_map = _compute_version_win_rates(map_source)
+        df_filtered = _select_single_account_entries(df_filtered, win_rate_map)
+        selected_idx = set(df_filtered.index)
+        if not df_filtered_all.empty:
+            pnl_mask = df_filtered_all["PnL"].notna()
+            df_filtered_all.loc[pnl_mask & ~df_filtered_all.index.isin(selected_idx), "PnL"] = np.nan
+
     df_filtered["Version"] = df_filtered["Version"].astype(str).replace("nan", "")
     df_filtered["Mes"] = df_filtered["DateParsed"].dt.to_period("M").astype(str)
     df_filtered = df_filtered.sort_values("AnalysisUTC")
@@ -513,11 +587,7 @@ def main() -> None:
     df_stats_global = df_filtered[df_filtered["TCIM_Vies"].notna() & (df_filtered["TCIM_Vies"] != "FORA")].copy()
 
     if not df_stats_global.empty:
-        df_stats_global["SignalPnL"] = np.where(
-            df_stats_global["TCIM_Vies"] == "COMPRA",
-            pd.to_numeric(df_stats_global["Up"], errors="coerce"),
-            pd.to_numeric(df_stats_global["Down"], errors="coerce"),
-        )
+        df_stats_global["SignalPnL"] = _compute_signal_pnl(df_stats_global)
         df_stats_global["Acertou"] = df_stats_global["SignalPnL"] > 0
         metrics_global = _region_metrics(df_stats_global)
 
@@ -529,11 +599,7 @@ def main() -> None:
             for region in region_order:
                 best_versions[region] = "N/D"
         else:
-            df_best["SignalPnL"] = np.where(
-                df_best["TCIM_Vies"] == "COMPRA",
-                pd.to_numeric(df_best["Up"], errors="coerce"),
-                pd.to_numeric(df_best["Down"], errors="coerce"),
-            )
+            df_best["SignalPnL"] = _compute_signal_pnl(df_best)
             df_best["Acertou"] = df_best["SignalPnL"] > 0
             df_best["VersionStr"] = df_best["Version"].fillna("").astype(str).replace("nan", "")
             by_region = (
