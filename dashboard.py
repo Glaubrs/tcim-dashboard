@@ -398,15 +398,15 @@ def main() -> None:
                 versao_sel_por_regiao[reg] = None
 
         simular_conta_unica = st.checkbox(
-            "Simular conta Çœnica por regiÇœo (prioriza melhor taxa de acerto)",
+            "Simular conta única por região (prioriza melhor taxa de acerto)",
             value=False,
-            help="Se houver sinais simultÇâneos nas versÇæes, escolhe a de maior taxa de acerto. Se sÇó uma sinalizar, ela entra.",
+            help="Se houver sinais simultâneos nas versões, escolhe a de maior taxa de acerto. Se só uma sinalizar, ela entra.",
         )
-        base_win_rate = "PerÇðodo filtrado"
+        base_win_rate = "Período filtrado"
         if simular_conta_unica:
             base_win_rate = st.selectbox(
                 "Base da taxa de acerto",
-                ["PerÇðodo filtrado", "HistÇórico completo"],
+                ["Período filtrado", "Histórico completo"],
                 index=0,
             )
 
