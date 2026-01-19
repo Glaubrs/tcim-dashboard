@@ -397,18 +397,23 @@ def main() -> None:
             else:
                 versao_sel_por_regiao[reg] = None
 
-        simular_conta_unica = st.checkbox(
-            "Simular conta única por região (prioriza melhor taxa de acerto)",
-            value=False,
-            help="Se houver sinais simultâneos nas versões, escolhe a de maior taxa de acerto. Se só uma sinalizar, ela entra.",
-        )
+        simular_conta_unica = False
         base_win_rate = "Período filtrado"
-        if simular_conta_unica:
-            base_win_rate = st.selectbox(
-                "Base da taxa de acerto",
-                ["Período filtrado", "Histórico completo"],
-                index=0,
+        show_conta_unica = all(
+            versao_sel_por_regiao.get(reg) is None for reg in (regioes_sel or [])
+        )
+        if show_conta_unica:
+            simular_conta_unica = st.checkbox(
+                "Simular conta única por região (prioriza melhor taxa de acerto)",
+                value=False,
+                help="Se houver sinais simultâneos nas versões, escolhe a de maior taxa de acerto. Se só uma sinalizar, ela entra.",
             )
+            if simular_conta_unica:
+                base_win_rate = st.selectbox(
+                    "Base da taxa de acerto",
+                    ["Período filtrado", "Histórico completo"],
+                    index=0,
+                )
 
         # Filtro de Data
         date_source = df["DateParsed"].dropna()
